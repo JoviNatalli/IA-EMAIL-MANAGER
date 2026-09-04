@@ -39,3 +39,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# dev-only local Postgres (PGlite-backed) — data + deps, not the tool itself
+/dev-db/node_modules
+/dev-db/pgdata
+/dev-db/server.log
+
+# .env* above ignores everything env-related; keep the documented template
+!.env.example

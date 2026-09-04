@@ -74,14 +74,18 @@ apenas no servidor.
 
 ### Pré-requisitos
 - Node.js ≥ 20.9, pnpm
-- PostgreSQL 16 a correr localmente (ou uma connection string remota)
+- Um Postgres acessível — não precisa de instalar nada: `pnpm db:local`
+  sobe um Postgres real (PGlite) em `127.0.0.1:5433`, ver
+  [`dev-db/README.md`](./dev-db/README.md). Alternativa: Postgres.app /
+  Homebrew / Docker / uma connection string remota.
 
 ### Setup
 
 ```bash
 pnpm install
-cp .env.example .env.local   # edite DATABASE_URL e AUTH_SECRET
-pnpm db:migrate               # aplica o schema
+cp .env.example .env.local   # já vem pronto para o dev-db; ajuste se usar outro Postgres
+pnpm db:local                 # (terminal 1, deixe a correr) sobe o Postgres local
+pnpm db:migrate               # (terminal 2) aplica o schema
 pnpm db:seed                  # cria o utilizador demo (demo@mailmind.app / demo1234)
 pnpm dev
 ```
@@ -94,6 +98,7 @@ para entrar imediatamente, sem criar conta.
 | Comando | Descrição |
 | --- | --- |
 | `pnpm dev` | Servidor de desenvolvimento (Turbopack) |
+| `pnpm db:local` | Sobe o Postgres local (PGlite), sem instalação |
 | `pnpm build` / `pnpm start` | Build e serve de produção |
 | `pnpm lint` / `pnpm typecheck` | ESLint / `tsc --noEmit` |
 | `pnpm db:generate` | Gera migration a partir do schema |
