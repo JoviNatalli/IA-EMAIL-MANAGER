@@ -5,6 +5,9 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { AppTopbar } from "@/components/layout/app-topbar";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { CommandPaletteProvider } from "@/components/layout/command-palette-provider";
+import { ComposeDialog } from "@/components/mail/compose-dialog";
+import { ComposeProvider } from "@/components/mail/compose-provider";
+import { getFolderCounts } from "@/lib/emails/queries";
 
 export default async function AppLayout({ children }: LayoutProps<"/app">) {
   // O `proxy.ts` já faz a checagem otimista; esta é a checagem real,
@@ -16,18 +19,23 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
     redirect("/login");
   }
 
+  const folderCounts = await getFolderCounts(session.user.id);
+
   return (
-    <CommandPaletteProvider>
-      <div className="flex h-svh overflow-hidden bg-background">
-        <AppSidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <AppTopbar user={session.user} />
-          <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            {children}
-          </main>
+    <ComposeProvider>
+      <CommandPaletteProvider>
+        <div className="flex h-svh overflow-hidden bg-background">
+          <AppSidebar counts={folderCounts} />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <AppTopbar user={session.user} />
+            <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
-      <CommandPalette />
-    </CommandPaletteProvider>
+        <CommandPalette />
+      </CommandPaletteProvider>
+      <ComposeDialog />
+    </ComposeProvider>
   );
 }

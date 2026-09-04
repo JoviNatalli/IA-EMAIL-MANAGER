@@ -1,13 +1,25 @@
-import { Search } from "lucide-react";
+import { redirect } from "next/navigation";
 
-import { EmptyState } from "@/components/shared/empty-state";
+import { auth } from "@/auth";
+import { listThreads } from "@/lib/emails/queries";
+import { SearchView } from "@/components/mail/search-view";
 
-export default function SearchPage() {
+export default async function SearchPage({
+  searchParams,
+}: PageProps<"/app/search">) {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+
+  const { q } = await searchParams;
+  const query = typeof q === "string" ? q : "";
+
+  const results = query.trim()
+    ? await listThreads(session.user.id, { type: "search", query })
+    : [];
+
   return (
-    <EmptyState
-      icon={Search}
-      title="Pesquisa por operadores e semântica."
-      description="from:, subject:, has:attachment e pesquisa semântica (spec §24) ficam disponíveis assim que houver emails para indexar, na Fase 2/6."
-    />
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <SearchView query={query} results={results} currentUserEmail={session.user.email ?? ""} />
+    </div>
   );
 }

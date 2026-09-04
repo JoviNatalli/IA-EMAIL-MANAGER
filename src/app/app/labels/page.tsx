@@ -1,13 +1,18 @@
-import { Tag } from "lucide-react";
+import { redirect } from "next/navigation";
 
-import { EmptyState } from "@/components/shared/empty-state";
+import { auth } from "@/auth";
+import { listLabels } from "@/lib/emails/queries";
+import { LabelsManager } from "@/components/mail/labels-manager";
 
-export default function LabelsPage() {
+export default async function LabelsPage() {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+
+  const labels = await listLabels(session.user.id);
+
   return (
-    <EmptyState
-      icon={Tag}
-      title="Sem labels criadas."
-      description="A categorização automática por IA (Work, Personal, Finance, ...) chega na Fase 4 — mas pode sempre criar labels manuais a partir da Fase 2."
-    />
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <LabelsManager labels={labels} />
+    </div>
   );
 }

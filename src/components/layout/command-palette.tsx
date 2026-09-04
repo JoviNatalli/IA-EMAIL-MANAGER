@@ -4,11 +4,17 @@ import {
   Archive,
   Bot,
   CheckSquare,
+  FileEdit,
   Inbox,
   PenSquare,
   Search,
+  Send,
   Settings,
   Sparkles,
+  Star,
+  Tag,
+  Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -23,14 +29,16 @@ import {
   CommandShortcut,
 } from "@/components/ui/command";
 import { useCommandPalette } from "@/components/layout/command-palette-provider";
+import { useCompose } from "@/components/mail/compose-provider";
 
 /**
- * ⌘K (spec §40). Fase 1: navegação + ações que já existem no shell. Ações
- * dependentes de dados de email (archive selected, mark as read, ask AI
- * sobre a mensagem atual) entram nas Fases 2 e 4.
+ * ⌘K (spec §40). Navegação + ações do shell de email (Fase 2). Ações
+ * dependentes de IA (perguntar sobre a mensagem atual, resumir, etc.)
+ * entram na Fase 4.
  */
 export function CommandPalette() {
   const { open, setOpen } = useCommandPalette();
+  const { open: openCompose } = useCompose();
   const router = useRouter();
 
   function go(href: string) {
@@ -43,15 +51,56 @@ export function CommandPalette() {
       <CommandInput placeholder="Pesquisar ou executar um comando..." />
       <CommandList>
         <CommandEmpty>Sem resultados.</CommandEmpty>
+        <CommandGroup heading="Ações">
+          <CommandItem
+            onSelect={() => {
+              setOpen(false);
+              openCompose();
+            }}
+          >
+            <PenSquare />
+            Novo email
+            <CommandShortcut>C</CommandShortcut>
+          </CommandItem>
+          <CommandItem onSelect={() => go("/app/search")}>
+            <Search />
+            Pesquisar emails
+          </CommandItem>
+        </CommandGroup>
+        <CommandSeparator />
         <CommandGroup heading="Navegar">
           <CommandItem onSelect={() => go("/app/inbox")}>
             <Inbox />
             Inbox
             <CommandShortcut>G I</CommandShortcut>
           </CommandItem>
+          <CommandItem onSelect={() => go("/app/important")}>
+            <TriangleAlert />
+            Important
+          </CommandItem>
+          <CommandItem onSelect={() => go("/app/starred")}>
+            <Star />
+            Starred
+          </CommandItem>
+          <CommandItem onSelect={() => go("/app/sent")}>
+            <Send />
+            Sent
+          </CommandItem>
+          <CommandItem onSelect={() => go("/app/drafts")}>
+            <FileEdit />
+            Drafts
+          </CommandItem>
           <CommandItem onSelect={() => go("/app/archive")}>
             <Archive />
             Archive
+          </CommandItem>
+          <CommandItem onSelect={() => go("/app/trash")}>
+            <Trash2 />
+            Trash
+          </CommandItem>
+          <CommandItem onSelect={() => go("/app/labels")}>
+            <Tag />
+            Labels
           </CommandItem>
           <CommandItem onSelect={() => go("/app/tasks")}>
             <CheckSquare />
@@ -65,18 +114,9 @@ export function CommandPalette() {
             <Sparkles />
             Daily Briefing
           </CommandItem>
-          <CommandItem onSelect={() => go("/app/search")}>
-            <Search />
-            Search
-          </CommandItem>
         </CommandGroup>
         <CommandSeparator />
-        <CommandGroup heading="Ações">
-          <CommandItem disabled>
-            <PenSquare />
-            Compose email
-            <CommandShortcut>C · Fase 2</CommandShortcut>
-          </CommandItem>
+        <CommandGroup heading="Definições">
           <CommandItem onSelect={() => go("/app/settings")}>
             <Settings />
             Definições

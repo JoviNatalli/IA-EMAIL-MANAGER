@@ -40,7 +40,7 @@ export function AppTopbar({
               <Bell className="size-4" />
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Notificações — Fase 2</TooltipContent>
+          <TooltipContent>Notificações (em breve)</TooltipContent>
         </Tooltip>
         <ThemeToggle />
         <NavUserMenu name={user.name} email={user.email} image={user.image} />

@@ -5,7 +5,8 @@ import { usePathname } from "next/navigation";
 import { Settings } from "lucide-react";
 
 import { Logo } from "@/components/layout/logo";
-import { primaryNav, secondaryNav } from "@/config/navigation";
+import { primaryNav, secondaryNav, type NavItem } from "@/config/navigation";
+import type { FolderCounts } from "@/lib/emails/queries";
 import { cn } from "@/lib/utils";
 
 function NavLink({
@@ -13,11 +14,13 @@ function NavLink({
   title,
   icon: Icon,
   active,
+  count,
 }: {
   href: string;
   title: string;
   icon: React.ComponentType<{ className?: string }>;
   active: boolean;
+  count?: number;
 }) {
   return (
     <Link
@@ -30,13 +33,27 @@ function NavLink({
       )}
     >
       <Icon className="size-4 shrink-0" />
-      <span className="truncate">{title}</span>
+      <span className="min-w-0 flex-1 truncate">{title}</span>
+      {!!count && (
+        <span
+          className={cn(
+            "shrink-0 rounded-full px-1.5 py-0.5 text-[11px] font-medium tabular-nums",
+            active ? "bg-background/60" : "bg-sidebar-accent text-sidebar-foreground/70",
+          )}
+        >
+          {count}
+        </span>
+      )}
     </Link>
   );
 }
 
-export function AppSidebar() {
+export function AppSidebar({ counts }: { counts: FolderCounts }) {
   const pathname = usePathname();
+
+  function countFor(item: NavItem) {
+    return item.countKey ? counts[item.countKey] : undefined;
+  }
 
   return (
     <aside className="hidden h-svh w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar md:flex">
@@ -53,6 +70,7 @@ export function AppSidebar() {
               key={item.href}
               {...item}
               active={pathname.startsWith(item.href)}
+              count={countFor(item)}
             />
           ))}
         </div>
