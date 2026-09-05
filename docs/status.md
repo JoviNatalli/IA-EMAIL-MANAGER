@@ -295,6 +295,9 @@ dashboard da AI Studio da própria conta):
   implementada e pronta a reativar) em vez de insistir no tier gratuito
   do Gemini para trabalho de agente mais intensivo.
 
+Commit `115d2c6` no branch `phase-4-gemini-provider` (não fiz push nem
+merge para `main` — decisão do utilizador).
+
 ## Notas operacionais que ainda importam
 
 - **PAT do GitHub por rodar**: um Personal Access Token foi partilhado em
