@@ -92,7 +92,8 @@
   (`src/lib/ai/errors.ts`), mesmo padrão do `GmailError` da Fase 3 — nunca
   erro técnico cru na UI. Verificado manualmente sem chave configurada: a
   UI mostra "A funcionalidade de IA ainda não está configurada neste
-  ambiente" em vez do erro técnico.
+  ambiente" em vez do erro técnico. Commit `65153a9` no branch
+  `phase-4-ai` (por push/merge — não fiz push, ver PAT por rodar abaixo).
 - **DB**: tabela `ai_analysis` (spec §28 "AIAnalysis") como cache por
   thread — migração `drizzle/0003_cuddly_quicksilver.sql`.
 - **Testes**: `vitest` (novo, projeto não tinha runner de unit tests) —
