@@ -33,6 +33,34 @@
    LLM sem validação Zod, pipeline LLM → schema → business rules →
    permission check → tool execution).
 
+## Decisão de provider de IA (2026-09-05)
+
+**Gemini (tier gratuito da Google), não Anthropic/OpenAI, por agora.**
+Motivo: projeto de portfólio sem orçamento definido ainda — a Anthropic e
+a OpenAI cobram desde a primeira chamada, a API do Gemini tem tier
+gratuito real (via https://aistudio.google.com/apikey, conta Google, sem
+cartão). `AI_DEFAULT_PROVIDER="google"` já em `.env.example`; falta criar
+a chave e pôr em `GOOGLE_GENERATIVE_AI_API_KEY` no `.env.local` real.
+
+Isto é só a escolha do provider concreto por trás da abstração que o
+spec já pede (§4) — a lógica de negócio (categorização, resumo, tool
+calling) não deve depender do provider escolhido; trocar para
+Anthropic/OpenAI mais tarde deve ser só mudar a env var + adaptador,
+nunca reescrever regras.
+
+Ressalva a documentar no README (não esconder): no tier gratuito do
+Gemini, o conteúdo enviado pode ser usado pela Google para melhorar os
+produtos deles — aceitável aqui porque a demonstração principal corre
+sobre o dataset fictício do Demo Mode (§47), não sobre Gmail real. Se a
+Fase 4/5 for testada com Gmail real ligado, avisar isso explicitamente
+antes (não assumir que o utilizador aceita silenciosamente).
+
+Dependência a adicionar: SDK do Gemini para a camada de abstração (ex.:
+`@ai-sdk/google` se usar o Vercel AI SDK, que já dá suporte a structured
+outputs/Zod e tool calling de forma uniforme entre providers — `ai` +
+`@ai-sdk/google` é a escolha mais direta dado que `@anthropic-ai/sdk` já
+está instalado à espera de ser plugado como segundo provider mais tarde).
+
 ## Regras não-negociáveis para a Fase 4/5 (master-spec)
 
 - **§13 — nunca inventar informação.** Se o resumo/análise de IA não tiver
