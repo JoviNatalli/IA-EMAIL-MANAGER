@@ -53,7 +53,7 @@ export async function authenticateWithCredentials(
   }
 }
 
-const DEMO_EMAIL = "demo@mailmind.app";
+const DEMO_EMAIL = "demo@nuvoly.app";
 const DEMO_PASSWORD = "demo1234";
 
 /**

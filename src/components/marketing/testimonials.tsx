@@ -21,10 +21,10 @@ export function Testimonials() {
     <section className="mx-auto max-w-6xl px-6 py-24">
       <div className="mx-auto max-w-xl text-center">
         <h2 className="text-3xl font-semibold tracking-tight text-foreground">
-          O que dizem sobre o MailMind
+          O que dizem sobre o Nuvoly
         </h2>
         <p className="mt-3 text-sm text-muted-foreground">
-          MailMind é um projeto de portfólio em desenvolvimento — os
+          Nuvoly é um projeto de portfólio em desenvolvimento — os
           depoimentos abaixo são{" "}
           <span className="font-medium text-foreground">
             exemplos ilustrativos

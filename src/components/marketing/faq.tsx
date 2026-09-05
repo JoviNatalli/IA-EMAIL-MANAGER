@@ -7,7 +7,7 @@ import {
 
 const faqs = [
   {
-    question: "O MailMind lê e guarda o conteúdo dos meus emails?",
+    question: "O Nuvoly lê e guarda o conteúdo dos meus emails?",
     answer:
       "Só processa o que for necessário para a funcionalidade pedida (princípio de \"minimum necessary context\"), e as opções de privacidade em Definições controlam explicitamente se o conteúdo é enviado à IA e se as conversas com o assistente são guardadas.",
   },

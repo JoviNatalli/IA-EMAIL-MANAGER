@@ -9,11 +9,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "MailMind — Your inbox, intelligently managed.",
-    template: "%s · MailMind",
+    default: "Nuvoly — Your inbox, intelligently managed.",
+    template: "%s · Nuvoly",
   },
   description:
-    "MailMind conecta-se à sua inbox e usa IA para resumir, priorizar, responder e organizar os seus emails — um copiloto, não apenas mais um chatbot.",
+    "Nuvoly conecta-se à sua inbox e usa IA para resumir, priorizar, responder e organizar os seus emails — um copiloto, não apenas mais um chatbot.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

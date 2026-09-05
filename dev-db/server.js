@@ -1,9 +1,9 @@
-// Local dev-only Postgres server for MailMind, backed by PGlite (WASM Postgres)
+// Local dev-only Postgres server for Nuvoly, backed by PGlite (WASM Postgres)
 // and exposed over the real Postgres wire protocol via pglite-socket.
 //
 // This exists because the sandboxed dev environment has no root access and no
 // package-manager route to a native PostgreSQL install. It is NOT part of the
-// MailMind app or its git history — pure local tooling, lives outside the repo.
+// Nuvoly app or its git history — pure local tooling, lives outside the repo.
 import { PGlite } from '@electric-sql/pglite'
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
 import path from 'node:path'
@@ -24,12 +24,12 @@ const server = new PGLiteSocketServer({
 })
 
 await server.start()
-console.log(`[mailmind-local-db] listening on postgresql://127.0.0.1:${port}/postgres`)
-console.log(`[mailmind-local-db] data dir: ${dataDir}`)
-console.log(`[mailmind-local-db] pid: ${process.pid}`)
+console.log(`[nuvoly-local-db] listening on postgresql://127.0.0.1:${port}/postgres`)
+console.log(`[nuvoly-local-db] data dir: ${dataDir}`)
+console.log(`[nuvoly-local-db] pid: ${process.pid}`)
 
 const shutdown = async () => {
-  console.log('[mailmind-local-db] shutting down...')
+  console.log('[nuvoly-local-db] shutting down...')
   await server.stop()
   await db.close()
   process.exit(0)

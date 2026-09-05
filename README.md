@@ -1,4 +1,4 @@
-# MailMind
+# Nuvoly
 
 **Your inbox, intelligently managed.**
 
@@ -126,7 +126,7 @@ pnpm dev
 ```
 
 Abra `http://localhost:3000` — clique **"Explorar demo sem conta"** no login
-para entrar imediatamente, sem criar conta (`demo@mailmind.app` / `demo1234`).
+para entrar imediatamente, sem criar conta (`demo@nuvoly.app` / `demo1234`).
 
 ### Scripts
 

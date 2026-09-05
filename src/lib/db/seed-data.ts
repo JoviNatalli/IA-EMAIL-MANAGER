@@ -11,7 +11,7 @@
  */
 
 export const DEMO_USER_NAME = "Alex Rivera";
-export const DEMO_USER_EMAIL = "demo@mailmind.app";
+export const DEMO_USER_EMAIL = "demo@nuvoly.app";
 
 export type SeedFolder = "inbox" | "sent" | "drafts" | "archive" | "trash";
 export type SeedPriority = "low" | "medium" | "high";
@@ -77,18 +77,18 @@ const you = (): SeedParticipant => ({ name: DEMO_USER_NAME, email: DEMO_USER_EMA
 export const DEMO_THREADS: SeedThread[] = [
   // ── Inbox ────────────────────────────────────────────────────────────
   {
-    subject: "Bem-vindo ao MailMind 🎉",
+    subject: "Bem-vindo ao Nuvoly 🎉",
     folder: "inbox",
     isRead: false,
     priority: "medium",
     category: "updates",
     messages: [
       {
-        fromName: "Equipa MailMind",
-        fromEmail: "team@mailmind.app",
+        fromName: "Equipa Nuvoly",
+        fromEmail: "team@nuvoly.app",
         to: [you()],
         hoursAgo: 2,
-        body: "Olá! A tua inbox está pronta.\n\nAlgumas coisas para experimentar: abre uma thread para veres o painel de detalhe, usa ⌘K para a command palette, e explora as labels no menu lateral.\n\nA partir da Fase 4 vamos ligar IA a sério — resumos, respostas sugeridas e deteção de prioridade. Por agora, esta inbox é só o dataset de demonstração.\n\n— Equipa MailMind",
+        body: "Olá! A tua inbox está pronta.\n\nAlgumas coisas para experimentar: abre uma thread para veres o painel de detalhe, usa ⌘K para a command palette, e explora as labels no menu lateral.\n\nA partir da Fase 4 vamos ligar IA a sério — resumos, respostas sugeridas e deteção de prioridade. Por agora, esta inbox é só o dataset de demonstração.\n\n— Equipa Nuvoly",
       },
     ],
   },
@@ -192,8 +192,8 @@ export const DEMO_THREADS: SeedThread[] = [
     category: "updates",
     messages: [
       {
-        fromName: "MailMind Security",
-        fromEmail: "security@mailmind.app",
+        fromName: "Nuvoly Security",
+        fromEmail: "security@nuvoly.app",
         to: [you()],
         hoursAgo: 6,
         body: "Detetámos um novo início de sessão na tua conta a partir de um dispositivo não reconhecido.\n\nSe foste tu, não precisas de fazer nada. Caso contrário, recomendamos que atualizes a tua palavra-passe em Definições → Conta.\n\n(Esta é uma notificação de exemplo do dataset de demo — nenhuma ação real é executada.)",

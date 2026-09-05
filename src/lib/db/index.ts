@@ -3,7 +3,7 @@ import postgres from "postgres";
 import * as schema from "./schema";
 
 declare global {
-  var __mailmindPgClient: ReturnType<typeof postgres> | undefined;
+  var __nuvolyPgClient: ReturnType<typeof postgres> | undefined;
 }
 
 const connectionString = process.env.DATABASE_URL;
@@ -16,11 +16,11 @@ if (!connectionString) {
 
 // Reutiliza a conexão entre hot-reloads em dev (evita esgotar o pool do Postgres).
 const client =
-  globalThis.__mailmindPgClient ??
+  globalThis.__nuvolyPgClient ??
   postgres(connectionString, { max: process.env.NODE_ENV === "production" ? 10 : 1 });
 
 if (process.env.NODE_ENV !== "production") {
-  globalThis.__mailmindPgClient = client;
+  globalThis.__nuvolyPgClient = client;
 }
 
 export const db = drizzle(client, { schema });
