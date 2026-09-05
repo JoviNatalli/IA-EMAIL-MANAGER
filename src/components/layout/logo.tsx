@@ -16,7 +16,7 @@ export function Logo({
         className,
       )}
     >
-      Mail<span className="text-primary">Mind</span>
+      Nuv<span className="text-primary">oly</span>
     </span>
   );
 }
