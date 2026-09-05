@@ -35,7 +35,7 @@ import { buildRawMimeMessage } from "@/lib/google/mime";
 import { syncSingleGmailThread } from "@/lib/google/sync";
 import { getValidGoogleAccessToken, hasGoogleAccountLinked } from "@/lib/google/tokens";
 
-async function requireUserId(): Promise<string> {
+export async function requireUserId(): Promise<string> {
   const session = await auth();
   if (!session?.user?.id) {
     throw new Error("Não autenticado.");
@@ -43,7 +43,7 @@ async function requireUserId(): Promise<string> {
   return session.user.id;
 }
 
-async function requireOwnThread(userId: string, threadId: string) {
+export async function requireOwnThread(userId: string, threadId: string) {
   const thread = await db.query.threads.findFirst({
     where: and(eq(threads.id, threadId), eq(threads.userId, userId)),
   });

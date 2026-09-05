@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Loader2, Send, Trash2 } from "lucide-react";
 
 import { discardDraft, saveDraft, sendDraft } from "@/app/actions/emails";
+import { ComposeAiToolbar } from "@/components/ai/compose-ai-toolbar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -177,6 +178,8 @@ function ComposeForm({
           placeholder="Escreve a tua mensagem..."
           className="min-h-56 resize-none border-0 px-0 shadow-none focus-visible:ring-0"
         />
+
+        <ComposeAiToolbar body={body} onChangeSubject={setSubject} onChangeBody={setBody} />
       </div>
 
       <div className="flex items-center justify-between border-t border-border pt-3">

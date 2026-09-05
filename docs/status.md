@@ -8,9 +8,11 @@
 
 - **Fases 1-3: completas e testadas manualmente.** HEAD `60d8846` em
   `main` (https://github.com/JoviNatalli/IA-EMAIL-MANAGER).
-- **Fase 4 (IA: resumo, categorização, prioridade, respostas, AI chat) e
-  Fase 5 (AI Agent com tool calling): ainda não iniciadas.** É o próximo
-  trabalho.
+- **Fase 4 (IA): implementada, aguarda `ANTHROPIC_API_KEY` real +
+  confirmação de teste manual do utilizador antes de avançar para a Fase 5.**
+  Ver secção "Fase 4 — o que foi feito" abaixo.
+- **Fase 5 (AI Agent com tool calling): não iniciada.** Só arranca depois
+  de o utilizador confirmar que testou a Fase 4.
 - Stack: Next.js 16 (App Router, Turbopack), TypeScript strict, Tailwind v4,
   design system próprio sobre Radix, Drizzle + PostgreSQL, Auth.js v5
   (Credentials + Google OAuth real), Gmail API via `fetch` direto (sem SDK
@@ -55,6 +57,72 @@
   pequeno/barato; resumo → modelo médio; raciocínio complexo (agente,
   Fase 5) → modelo avançado. Camada de abstração de provider (não
   hardcodar um único provider/modelo — master-spec §4).
+
+## Fase 4 — o que foi feito (2026-09-05)
+
+- **Provider**: só Anthropic implementado (decisão do utilizador — Claude,
+  já era o `AI_DEFAULT_PROVIDER` em `.env.local`). `src/lib/ai/provider.ts`
+  define a interface `AIProvider` (spec §4) — trocar de provider é
+  implementar essa interface, não reescrever chamadores. OpenAI/Gemini têm
+  as env vars já previstas em `.env.example` mas lançam
+  `AIProviderNotConfiguredError` (erro amigável, nunca uma resposta
+  simulada) até serem implementados.
+- **Model routing** (`src/lib/ai/models.ts`, spec §51-52): classificação/
+  quick replies → `claude-haiku-4-5`; resumo, reply generator, compose
+  actions e chat → `claude-sonnet-5`. Sem raciocínio complexo nesta fase
+  (isso é o AI Agent da Fase 5).
+- **Structured outputs**: `client.messages.parse` + `zodOutputFormat`
+  (`@anthropic-ai/sdk`) — nunca parse de texto livre à mão. Schemas em
+  `src/lib/ai/schemas.ts`.
+- **Prompt injection** (spec §31): `src/lib/ai/prompts.ts` separa
+  SYSTEM INSTRUCTIONS / USER INSTRUCTIONS / `<EMAIL_CONTENT>` /
+  `<TEXT_TO_EDIT>` em todos os prompts, com aviso anti-injeção explícito no
+  `system`. Testado em `src/lib/ai/__tests__/prompts.test.ts` com conteúdo
+  de email deliberadamente malicioso.
+- **Funcionalidades implementadas**: AI Insights (resumo + categoria +
+  prioridade + intenção + sentimento + ação sugerida, cache em
+  `ai_analysis`, botão "Analisar com IA" — nunca automático, spec §51),
+  AI Reply Generator (tom/comprimento/instrução livre), Smart Reply (até 3
+  sugestões rápidas), AI Compose actions (improve/shorten/professional/
+  friendlier/translate/continue) e "Escrever com IA" (gera assunto+corpo),
+  AI Chat lateral com streaming real (`/api/ai/chat`, Route Handler +
+  `ReadableStream`) e contexto agregado da inbox (nunca conteúdo de email —
+  "minimum necessary context", spec §26).
+- **Erros**: `AIError`/`AIProviderNotConfiguredError`
+  (`src/lib/ai/errors.ts`), mesmo padrão do `GmailError` da Fase 3 — nunca
+  erro técnico cru na UI. Verificado manualmente sem chave configurada: a
+  UI mostra "A funcionalidade de IA ainda não está configurada neste
+  ambiente" em vez do erro técnico.
+- **DB**: tabela `ai_analysis` (spec §28 "AIAnalysis") como cache por
+  thread — migração `drizzle/0003_cuddly_quicksilver.sql`.
+- **Testes**: `vitest` (novo, projeto não tinha runner de unit tests) —
+  `pnpm test:unit`. 18 testes: validação Zod de todos os structured
+  outputs (aceita bom, rejeita categoria/prioridade fora do enum, rejeita
+  campo em falta) e separação SYSTEM/EMAIL CONTENT em todos os builders de
+  prompt com um payload de prompt injection real.
+- **Fora do âmbito desta fase (decisão documentada, não escondida)**:
+  - **AI chat sem histórico persistido** — conversa só em estado do
+    cliente (perde-se ao recarregar a página). A Fase 5 vai precisar de
+    persistir conversas/tool calls de qualquer forma (`AIConversation`/
+    `AIMessage`/`AIToolCall`, spec §28) — decidi não duplicar esse trabalho
+    agora.
+  - **Streaming só no AI Chat** — resumo/categorização/reply usam
+    `messages.parse` (não-streaming) porque precisam do JSON completo para
+    validar com Zod antes de mostrar algo; o "loading state com passos"
+    (spec §34) é simulado no cliente (`AiInsightsPanel`) enquanto os dois
+    pedidos reais correm em paralelo — não é um progresso fabricado, é o
+    verdadeiro estado das duas chamadas em curso.
+  - **Testes de integração das Server Actions com o provider real** — não
+    escrito automatizado (exigiria mockar `@anthropic-ai/sdk` ou gastar
+    tokens reais em CI); verificado manualmente no browser com o pipeline
+    completo (auth → ownership → provider → erro amigável), só falta
+    validar com uma `ANTHROPIC_API_KEY` real.
+- **Por fazer antes de considerar a Fase 4 fechada**: o utilizador tem de
+  colocar uma `ANTHROPIC_API_KEY` real em `.env.local` e testar pelo menos
+  uma vez cada funcionalidade (Analisar com IA, Draft reply, Smart Reply,
+  Ações de IA no compose, AI Chat) para confirmar que a saída do modelo
+  real é sensata — sem chave, só foi possível validar o esqueleto e o
+  tratamento de erro.
 
 ## Notas operacionais que ainda importam
 

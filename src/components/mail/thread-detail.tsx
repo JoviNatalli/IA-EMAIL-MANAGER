@@ -13,7 +13,6 @@ import {
   Reply,
   ReplyAll,
   Send,
-  Sparkles,
   Star,
   Tag,
   Trash2,
@@ -28,6 +27,9 @@ import {
   setThreadRead,
   toggleThreadStar,
 } from "@/app/actions/emails";
+import type { ThreadAnalysis } from "@/app/actions/ai";
+import { AiInsightsPanel } from "@/components/ai/ai-insights-panel";
+import { QuickReplies } from "@/components/ai/quick-replies";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -69,11 +71,13 @@ export function ThreadDetail({
   basePath,
   currentUserEmail,
   labels,
+  initialAnalysis,
 }: {
   thread: ThreadDetailData;
   basePath: string;
   currentUserEmail: string;
   labels: LabelWithCount[];
+  initialAnalysis: ThreadAnalysis | null;
 }) {
   const router = useRouter();
   const { open: openCompose } = useCompose();
@@ -146,6 +150,11 @@ export function ThreadDetail({
     } finally {
       setIsSendingReply(false);
     }
+  }
+
+  function startAiReply(body: string) {
+    setReplyMode((current) => current ?? "reply");
+    setReplyBody(body);
   }
 
   function handleForward() {
@@ -301,7 +310,7 @@ export function ThreadDetail({
             </div>
           </div>
 
-          <AiInsightsPlaceholder />
+          <AiInsightsPanel threadId={thread.id} initialAnalysis={initialAnalysis} onDraftReply={startAiReply} />
 
           <div className="flex flex-col gap-2">
             {thread.messages.map((message, index) => {
@@ -355,21 +364,24 @@ export function ThreadDetail({
               </div>
             </div>
           ) : (
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" size="sm" onClick={() => setReplyMode("reply")}>
-                <Reply className="size-4" />
-                Responder
-              </Button>
-              {otherParticipants.length > 1 && (
-                <Button variant="outline" size="sm" onClick={() => setReplyMode("reply-all")}>
-                  <ReplyAll className="size-4" />
-                  Responder a todos
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => setReplyMode("reply")}>
+                  <Reply className="size-4" />
+                  Responder
                 </Button>
-              )}
-              <Button variant="outline" size="sm" onClick={handleForward}>
-                <Forward className="size-4" />
-                Reencaminhar
-              </Button>
+                {otherParticipants.length > 1 && (
+                  <Button variant="outline" size="sm" onClick={() => setReplyMode("reply-all")}>
+                    <ReplyAll className="size-4" />
+                    Responder a todos
+                  </Button>
+                )}
+                <Button variant="outline" size="sm" onClick={handleForward}>
+                  <Forward className="size-4" />
+                  Reencaminhar
+                </Button>
+              </div>
+              <QuickReplies threadId={thread.id} onPick={startAiReply} />
             </div>
           )}
         </div>
@@ -484,18 +496,6 @@ function MessageBubble({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function AiInsightsPlaceholder() {
-  return (
-    <div className="flex items-start gap-3 rounded-lg border border-dashed border-border px-4 py-3">
-      <Sparkles className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-      <div className="text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">AI Insights</span> — resumo, prioridade e
-        respostas sugeridas chegam na Fase 4. Esta thread ainda não foi analisada por IA.
-      </div>
     </div>
   );
 }

@@ -87,6 +87,28 @@ export const gmailSyncStatusEnum = pgEnum("gmail_sync_status", [
   "error",
 ]);
 
+// Fase 4 — categorias da análise de IA (spec §22). Conjunto próprio,
+// distinto do `threadCategoryEnum` acima: aquele é o placeholder estático do
+// seed da Fase 2 (nunca apresentado como IA); este é o output real do
+// classificador (`src/lib/ai/schemas.ts`).
+export const aiCategoryEnum = pgEnum("ai_category", [
+  "work",
+  "personal",
+  "finance",
+  "shopping",
+  "social",
+  "newsletter",
+  "meetings",
+  "important",
+  "promotional",
+]);
+
+export const aiSentimentEnum = pgEnum("ai_sentiment", [
+  "positive",
+  "neutral",
+  "negative",
+]);
+
 // ── Users & Auth (compatível com o Drizzle Adapter do Auth.js) ────────────
 
 export const users = pgTable("user", {
@@ -311,6 +333,36 @@ export const gmailSync = pgTable("gmail_sync", {
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
+// ── AI Analysis (Fase 4) ────────────────────────────────────────────────
+
+// Cache da análise de IA de uma thread (spec §28 "AIAnalysis") — evita
+// rechamar o LLM sempre que a thread é reaberta (spec §51, controlo de
+// custo). Uma linha por thread; recalculada sob pedido explícito do
+// utilizador ("Analisar com IA"), nunca automaticamente em cada view.
+export const aiAnalysis = pgTable("ai_analysis", {
+  threadId: uuid("thread_id")
+    .primaryKey()
+    .references(() => threads.id, { onDelete: "cascade" }),
+  category: aiCategoryEnum("category").notNull(),
+  priority: threadPriorityEnum("priority").notNull(),
+  requiresReply: boolean("requires_reply").notNull(),
+  intent: text("intent").notNull(),
+  sentiment: aiSentimentEnum("sentiment").notNull(),
+  hasEnoughInformation: boolean("has_enough_information").notNull(),
+  summary: text("summary").notNull(),
+  keyPoints: jsonb("key_points").$type<string[]>().notNull().default([]),
+  suggestedAction: text("suggested_action"),
+  // Modelo que gerou esta análise — útil para invalidar cache ao trocar de
+  // modelo/provider e para observability (spec §50).
+  model: text("model").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const aiAnalysisRelations = relations(aiAnalysis, ({ one }) => ({
+  thread: one(threads, { fields: [aiAnalysis.threadId], references: [threads.id] }),
+}));
+
 // ── Relations ────────────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many, one }) => ({
@@ -332,6 +384,7 @@ export const threadsRelations = relations(threads, ({ one, many }) => ({
   user: one(users, { fields: [threads.userId], references: [users.id] }),
   emails: many(emails),
   threadLabels: many(threadLabels),
+  aiAnalysis: one(aiAnalysis, { fields: [threads.id], references: [aiAnalysis.threadId] }),
 }));
 
 export const emailsRelations = relations(emails, ({ one, many }) => ({

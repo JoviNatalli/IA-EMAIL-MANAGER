@@ -3,6 +3,7 @@ import { Inbox as InboxIconFallback, type LucideIcon } from "lucide-react";
 
 import { auth } from "@/auth";
 import { getThread, listLabels, listThreads, type ThreadScope } from "@/lib/emails/queries";
+import { getCachedAnalysis } from "@/app/actions/ai";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ThreadList } from "@/components/mail/thread-list";
 import { ThreadDetail, ThreadDetailEmpty } from "@/components/mail/thread-detail";
@@ -45,6 +46,10 @@ export async function MailShell({
     redirect(basePath);
   }
 
+  // Cache da análise de IA (spec §51) — lida aqui para não haver "flash" de
+  // estado vazio no painel de insights ao abrir uma thread já analisada.
+  const initialAnalysis = selected ? await getCachedAnalysis(selected.id).catch(() => null) : null;
+
   return (
     <div className="flex h-full min-h-0">
       <div
@@ -75,6 +80,7 @@ export async function MailShell({
             basePath={basePath}
             currentUserEmail={currentUserEmail}
             labels={labels}
+            initialAnalysis={initialAnalysis}
           />
         ) : (
           <ThreadDetailEmpty />
