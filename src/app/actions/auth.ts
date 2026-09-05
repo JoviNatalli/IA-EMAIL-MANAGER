@@ -4,7 +4,7 @@ import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 
-import { signIn } from "@/auth";
+import { auth, signIn, signOut } from "@/auth";
 import { db } from "@/lib/db";
 import { userPreferences, users } from "@/lib/db/schema";
 import { loginSchema, signupSchema } from "@/lib/auth/schemas";
@@ -59,6 +59,15 @@ export async function authenticateWithCredentials(
  * é o próprio OAuth) nem um `try/catch` a esconder erros de redirect.
  */
 export async function signInWithGoogle() {
+  // O Auth.js (v5) liga a conta OAuth ao utilizador da sessão ATIVA quando
+  // já existe uma sessão no momento do callback, em vez de criar um
+  // utilizador novo (comportamento de "account linking" que não queremos
+  // aqui — cada login Google deve resultar sempre na conta correta para
+  // aquele email). Por isso terminamos qualquer sessão existente primeiro.
+  const session = await auth();
+  if (session?.user) {
+    await signOut({ redirect: false });
+  }
   await signIn("google", { redirectTo: "/app/inbox" });
 }
 
