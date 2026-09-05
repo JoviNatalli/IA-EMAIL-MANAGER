@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
-import { Mail } from "lucide-react";
+import { and, count, eq } from "drizzle-orm";
 
 import { auth } from "@/auth";
+import { db } from "@/lib/db";
+import { accounts, gmailSync, threads } from "@/lib/db/schema";
 import { AppearanceSection } from "@/components/settings/appearance-section";
+import { GmailConnectionCard } from "@/components/settings/gmail-connection";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -30,6 +32,19 @@ export default async function SettingsPage() {
   if (!session?.user) redirect("/login");
 
   const { name, email } = session.user;
+  const userId = session.user.id;
+
+  const [googleAccount] = await db
+    .select({ providerAccountId: accounts.providerAccountId })
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.provider, "google")));
+
+  const [syncState] = await db.select().from(gmailSync).where(eq(gmailSync.userId, userId));
+
+  const [{ gmailThreadCount }] = await db
+    .select({ gmailThreadCount: count() })
+    .from(threads)
+    .where(and(eq(threads.userId, userId), eq(threads.source, "gmail")));
 
   return (
     <div className="mx-auto w-full max-w-2xl px-6 py-10">
@@ -78,20 +93,14 @@ export default async function SettingsPage() {
         </TabsContent>
 
         <TabsContent value="connected" className="mt-6">
-          <div className="flex items-center justify-between rounded-lg border border-border p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex size-9 items-center justify-center rounded-md bg-muted">
-                <Mail className="size-4 text-muted-foreground" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">Gmail</p>
-                <p className="text-xs text-muted-foreground">
-                  Integração OAuth real — Fase 3
-                </p>
-              </div>
-            </div>
-            <Badge variant="outline">Não ligado</Badge>
-          </div>
+          <GmailConnectionCard
+            connected={!!googleAccount}
+            email={googleAccount ? email ?? null : null}
+            syncStatus={syncState?.status ?? null}
+            lastSyncedAt={syncState?.lastSyncedAt ?? null}
+            lastError={syncState?.lastError ?? null}
+            threadCount={gmailThreadCount}
+          />
         </TabsContent>
 
         <TabsContent value="ai" className="mt-6 flex flex-col gap-4">

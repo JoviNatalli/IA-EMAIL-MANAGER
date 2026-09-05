@@ -53,6 +53,15 @@ export async function authenticateWithCredentials(
   }
 }
 
+/**
+ * Login/signup real com Google (Fase 3) — o próprio `signIn` do Auth.js trata
+ * do redirect para a Google e de volta; não há aqui nada para validar (isso
+ * é o próprio OAuth) nem um `try/catch` a esconder erros de redirect.
+ */
+export async function signInWithGoogle() {
+  await signIn("google", { redirectTo: "/app/inbox" });
+}
+
 const DEMO_EMAIL = "demo@nuvoly.app";
 const DEMO_PASSWORD = "demo1234";
 

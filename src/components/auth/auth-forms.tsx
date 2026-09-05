@@ -6,6 +6,7 @@ import { Loader2, Sparkles } from "lucide-react";
 import {
   authenticateWithCredentials,
   demoSignIn,
+  signInWithGoogle,
   signup,
   type AuthActionState,
 } from "@/app/actions/auth";
@@ -18,21 +19,71 @@ import { cn } from "@/lib/utils";
 
 const initialState: AuthActionState = { status: "idle" };
 
-export function AuthCard() {
+export function AuthCard({ oauthError }: { oauthError?: string }) {
   return (
-    <Tabs defaultValue="signin" className="w-full">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="signin">Entrar</TabsTrigger>
-        <TabsTrigger value="signup">Criar conta</TabsTrigger>
-      </TabsList>
+    <div className="flex flex-col gap-6">
+      {oauthError && (
+        <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          {oauthError}
+        </p>
+      )}
 
-      <TabsContent value="signin" className="mt-6">
-        <SignInForm />
-      </TabsContent>
-      <TabsContent value="signup" className="mt-6">
-        <SignUpForm />
-      </TabsContent>
-    </Tabs>
+      <GoogleButton />
+
+      <div className="flex items-center gap-3">
+        <Separator className="flex-1" />
+        <span className="text-xs text-muted-foreground">ou</span>
+        <Separator className="flex-1" />
+      </div>
+
+      <Tabs defaultValue="signin" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="signin">Entrar</TabsTrigger>
+          <TabsTrigger value="signup">Criar conta</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="signin" className="mt-6">
+          <SignInForm />
+        </TabsContent>
+        <TabsContent value="signup" className="mt-6">
+          <SignUpForm />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+function GoogleIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+      <path
+        fill="#EA4335"
+        d="M24 9.5c3.4 0 6.4 1.2 8.8 3.5l6.5-6.5C35.3 2.6 30 0.5 24 0.5 14.9 0.5 7 5.7 3.2 13.3l7.6 5.9C12.6 13.5 17.8 9.5 24 9.5z"
+      />
+      <path
+        fill="#4285F4"
+        d="M46.5 24.5c0-1.6-.1-3.1-.4-4.6H24v9h12.6c-.5 3-2.2 5.5-4.7 7.2l7.3 5.7c4.3-4 6.8-9.8 6.8-17.3z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M10.8 28.2c-.5-1.5-.8-3.1-.8-4.7s.3-3.2.8-4.7l-7.6-5.9C1.5 16.4 0.5 20.1 0.5 23.5s1 7.1 2.7 10.6l7.6-5.9z"
+      />
+      <path
+        fill="#34A853"
+        d="M24 47.5c6 0 11.3-2 15.1-5.4l-7.3-5.7c-2 1.4-4.7 2.2-7.8 2.2-6.2 0-11.4-4-13.2-9.6l-7.6 5.9C7 42.3 14.9 47.5 24 47.5z"
+      />
+    </svg>
+  );
+}
+
+function GoogleButton() {
+  return (
+    <form action={signInWithGoogle}>
+      <Button type="submit" variant="outline" className="w-full gap-2">
+        <GoogleIcon className="size-4" />
+        Continuar com Google
+      </Button>
+    </form>
   );
 }
 

@@ -21,6 +21,7 @@ import {
   jsonb,
   integer,
   index,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
@@ -72,6 +73,18 @@ export const labelColorEnum = pgEnum("label_color", [
   "amber",
   "purple",
   "rose",
+]);
+
+// Fase 3: origem de uma thread — "demo" (seed) ou "gmail" (sincronizada da
+// conta Google real ligada via OAuth). Nunca misturado: threads de demo
+// nunca são tocadas por uma sincronização real, e vice-versa.
+export const threadSourceEnum = pgEnum("thread_source", ["demo", "gmail"]);
+
+// Estado da sincronização com o Gmail por utilizador (spec §28 — "SyncState").
+export const gmailSyncStatusEnum = pgEnum("gmail_sync_status", [
+  "idle",
+  "syncing",
+  "error",
 ]);
 
 // ── Users & Auth (compatível com o Drizzle Adapter do Auth.js) ────────────
@@ -179,12 +192,19 @@ export const threads = pgTable(
     isRead: boolean("is_read").notNull().default(true),
     priority: threadPriorityEnum("priority").notNull().default("medium"),
     category: threadCategoryEnum("category"),
+    // Fase 3: "demo" (seed, nunca tocado por sync real) ou "gmail" (linha
+    // espelha uma thread real, identificada por `gmailThreadId`).
+    source: threadSourceEnum("source").notNull().default("demo"),
+    gmailThreadId: text("gmail_thread_id"),
     // Denormalizado para ordenar a lista sem agregar `email` a cada render.
     lastMessageAt: timestamp("last_message_at").notNull().defaultNow(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [
     index("thread_user_folder_idx").on(t.userId, t.folder, t.lastMessageAt),
+    // Permite `null` em várias linhas (Postgres trata NULLs como distintos) —
+    // só impede duplicar a mesma thread do Gmail para o mesmo utilizador.
+    uniqueIndex("thread_user_gmail_thread_idx").on(t.userId, t.gmailThreadId),
   ],
 );
 
@@ -202,12 +222,26 @@ export const emails = pgTable(
     bcc: jsonb("bcc").$type<EmailParticipant[]>().notNull().default([]),
     bodyText: text("body_text").notNull().default(""),
     snippet: text("snippet").notNull().default(""),
-    // NULL enquanto for rascunho (ainda não "enviado" — Fase 2 não tem
-    // envio real, é simulado: passa a ter sentAt e o thread muda de pasta).
+    // NULL para threads "demo" (Fase 2, envio simulado). Para threads
+    // "gmail" passa a ter sentAt real assim que a Gmail API confirma o envio.
     sentAt: timestamp("sent_at"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    // Fase 3 — mapeamento para a mensagem real no Gmail (null para "demo").
+    gmailMessageId: text("gmail_message_id"),
+    // Header Message-ID (RFC 822) da mensagem — necessário para threading
+    // correto (In-Reply-To/References) quando respondemos via Gmail API.
+    rfcMessageId: text("rfc_message_id"),
+    // Snapshot dos labelIds devolvidos pela Gmail API na última sincronização
+    // — usado para derivar folder/estrela/lido e para diffs futuros.
+    gmailLabelIds: jsonb("gmail_label_ids").$type<string[]>(),
+    // Id do rascunho no Gmail (`users.drafts`), para fazer update em vez de
+    // duplicar a cada autosave.
+    gmailDraftId: text("gmail_draft_id"),
   },
-  (t) => [index("email_thread_idx").on(t.threadId)],
+  (t) => [
+    index("email_thread_idx").on(t.threadId),
+    uniqueIndex("email_gmail_message_idx").on(t.gmailMessageId),
+  ],
 );
 
 export const attachments = pgTable(
@@ -234,8 +268,16 @@ export const labels = pgTable(
     name: text("name").notNull(),
     color: labelColorEnum("color").notNull().default("slate"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
+    // Fase 3 — preenchido quando esta label foi importada do Gmail (permite
+    // aplicar/remover a label na conta real). Labels criadas só localmente
+    // ficam com isto a null — ainda não sincronizamos criação de labels
+    // novas de volta para o Gmail (ver README "Future Improvements").
+    gmailLabelId: text("gmail_label_id"),
   },
-  (t) => [index("label_user_idx").on(t.userId)],
+  (t) => [
+    index("label_user_idx").on(t.userId),
+    uniqueIndex("label_user_gmail_label_idx").on(t.userId, t.gmailLabelId),
+  ],
 );
 
 export const threadLabels = pgTable(
@@ -251,6 +293,24 @@ export const threadLabels = pgTable(
   (t) => [primaryKey({ columns: [t.threadId, t.labelId] })],
 );
 
+// Estado de sincronização Gmail por utilizador (spec §28 "SyncState") — uma
+// linha por utilizador com conta Google ligada. `historyId` é o cursor da
+// Gmail History API (`users.history.list`) para sincronizações incrementais
+// depois da sincronização inicial completa.
+export const gmailSync = pgTable("gmail_sync", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  historyId: text("history_id"),
+  status: gmailSyncStatusEnum("status").notNull().default("idle"),
+  lastSyncedAt: timestamp("last_synced_at", { mode: "date" }),
+  // Mensagem amigável (nunca o erro técnico cru — spec §35), guardada para
+  // mostrar na UI de Connected Accounts se a última sincronização falhou.
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 // ── Relations ────────────────────────────────────────────────────────────
 
 export const usersRelations = relations(users, ({ many, one }) => ({
@@ -259,6 +319,10 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   preferences: one(userPreferences, {
     fields: [users.id],
     references: [userPreferences.userId],
+  }),
+  gmailSync: one(gmailSync, {
+    fields: [users.id],
+    references: [gmailSync.userId],
   }),
   threads: many(threads),
   labels: many(labels),
@@ -296,6 +360,10 @@ export const threadLabelsRelations = relations(threadLabels, ({ one }) => ({
     fields: [threadLabels.labelId],
     references: [labels.id],
   }),
+}));
+
+export const gmailSyncRelations = relations(gmailSync, ({ one }) => ({
+  user: one(users, { fields: [gmailSync.userId], references: [users.id] }),
 }));
 
 export const accountsRelations = relations(accounts, ({ one }) => ({
