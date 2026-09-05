@@ -131,7 +131,7 @@ export async function analyzeThread(threadId: string): Promise<ThreadAnalysis> {
         summary: summary.summary,
         keyPoints: summary.keyPoints,
         suggestedAction: summary.suggestedAction,
-        model: resolveModel("summarize"),
+        model: resolveModel(provider.name, "summarize"),
         updatedAt: now,
       })
       .onConflictDoUpdate({
@@ -146,7 +146,7 @@ export async function analyzeThread(threadId: string): Promise<ThreadAnalysis> {
           summary: summary.summary,
           keyPoints: summary.keyPoints,
           suggestedAction: summary.suggestedAction,
-          model: resolveModel("summarize"),
+          model: resolveModel(provider.name, "summarize"),
           updatedAt: now,
         },
       });
