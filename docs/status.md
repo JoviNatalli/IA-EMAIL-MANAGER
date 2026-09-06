@@ -504,6 +504,8 @@ por código (`useReducedMotion` em todas as primitivas + bloco `@media` global
 no `globals.css`) mas também não foi emulado no browser. **Fica para o
 utilizador confirmar a olho.**
 
+Commit `e458768` no branch `phase-7-landing-redesign` (sem push nem merge).
+
 ### Fora do âmbito (não é esquecimento)
 
 - **UX da app intocada**: nenhuma mudança em `components/mail`, `ai`,
