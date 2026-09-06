@@ -14,6 +14,7 @@
 import * as React from "react";
 import Link from "next/link";
 
+import { Logo } from "@/components/layout/logo";
 import { cn } from "@/lib/utils";
 
 const sections = [
@@ -78,13 +79,12 @@ export function Masthead({ editionDate }: { editionDate: string }) {
 
         {/* Cabeçalho: expandido no topo, cabeça corrente depois */}
         <div className="rule-double flex items-baseline justify-between gap-4">
-          <Link
-            href="/"
-            className="misregister headline block leading-none text-foreground transition-all duration-500"
-            style={{ fontSize: collapsed ? "1.35rem" : "clamp(2.5rem, 7vw, 5.5rem)" }}
-            aria-label="Nuvoly — início"
-          >
-            Nuvoly
+          <Link href="/" aria-label="Nuvoly — início" className="block">
+            <Logo
+              variant="edition"
+              className="transition-all duration-500"
+              style={{ fontSize: collapsed ? "1.35rem" : "clamp(2.5rem, 7vw, 5.5rem)" }}
+            />
           </Link>
 
           {collapsed && currentLabel && (

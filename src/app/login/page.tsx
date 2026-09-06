@@ -23,13 +23,22 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   return (
     <div className="flex min-h-svh items-center justify-center bg-background px-4 py-12">
       <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center gap-2 text-center">
-          <Link href="/">
-            <Logo size="lg" />
+        {/*
+          Cabeçalho no registo da edição (Bodoni + filete duplo + fólio): o
+          login é a porta de entrada vinda da homepage, e usar aqui a
+          tipografia da app fazia a marca mudar de voz a meio do caminho. O
+          formulário abaixo mantém-se em Geist — é superfície de aplicação,
+          não de capa.
+        */}
+        <div className="mb-8 text-center">
+          <Link href="/" className="inline-block" aria-label="Nuvoly — início">
+            <Logo size="lg" variant="edition" />
           </Link>
-          <p className="text-sm text-muted-foreground">
-            Your inbox, intelligently managed.
-          </p>
+          <div className="rule-double mt-3">
+            <p className="folio text-muted-foreground">
+              Your inbox, intelligently managed.
+            </p>
+          </div>
         </div>
 
         <div className="rounded-xl border border-border bg-card p-6 shadow-sm">
