@@ -24,7 +24,13 @@
   pipeline do §59, ações confirmáveis (§18), extração de tarefas (§20),
   deteção de reuniões (§21) e Daily Briefing (§19). Ver "Fase 5 — AI Agent"
   abaixo. Falta a validação final do utilizador para a dar por fechada.
-- **Fase 6 (semantic search/RAG, Gmail incremental, ...): não iniciada.**
+- **Fase 7 (parcial) — redesign visual da landing + refresh de tokens
+  (2026-09-06).** Reordenação deliberada, decidida com o utilizador: o §60 do
+  master-spec põe UX e qualidade visual acima da integração de IA, e a
+  primeira impressão da landing pesa muito num projeto de portfólio. Ver
+  "Fase 7 (parcial)" abaixo.
+- **Fase 6 (semantic search/RAG, Gmail incremental): não iniciada — é o
+  próximo trabalho**, retomada depois deste redesign.
 - Stack: Next.js 16 (App Router, Turbopack), TypeScript strict, Tailwind v4,
   design system próprio sobre Radix, Drizzle + PostgreSQL, Auth.js v5
   (Credentials + Google OAuth real), Gmail API via `fetch` direto (sem SDK
@@ -433,6 +439,82 @@ mesmo em Sent); extração de tarefas com [Criar tarefa] → tarefa em
 `/app/tasks` agrupada por dia; deteção de reunião com [Adicionar] → evento
 em `/app/calendar`; briefing diário gerado a partir das contagens reais;
 cancelamento de uma ação pendente; erro de quota diária mostrado em PT-PT.
+
+## Fase 7 (parcial) — redesign visual da landing (2026-09-06)
+
+Âmbito deliberadamente estreito: **só a landing page e os tokens**. A UX da
+app não foi tocada.
+
+- **Direção estética**: "editorial signal" — editorial suíço com precisão de
+  terminal. A landing é sempre escura (classe `.landing`, que re-escopa os
+  MESMOS custom properties da app, não um segundo sistema de tokens); o
+  produto aparece como o trabalho iluminado por cima da tinta.
+- **Tipografia**: par novo só na landing — Instrument Serif (display, serifa
+  de alto contraste), Archivo (corpo) e JetBrains Mono (rótulos e números).
+  A app mantém Geist: numa lista densa de emails continua a ser a mais
+  legível, e trocar por trocar só a tornaria pior. Tudo auto-hospedado via
+  `next/font` (sem pedidos a terceiros, sem CLS).
+- **Narrativa em seis momentos** (impacto → contexto → demonstração → prova →
+  diferenciação → conversão), com a secção "produto" em sticky storytelling:
+  a superfície do produto muda conforme a capacidade que está a ser lida.
+  Nova secção `difference.tsx`; `product-preview.tsx` passou a ter quatro
+  estados (triagem, insights, rascunho, confirmação).
+- **Motion**: `framer-motion` (já era dependência, não usada até agora).
+  Reveals de scroll, entrada palavra a palavra no título, parallax subtil e
+  CTAs magnéticos — em `motion-primitives.tsx`, todos com `useReducedMotion`.
+- **Honestidade dos dados fictícios** (spec §8/§13): a secção de prova e a de
+  preços abrem com um aviso visível ("cenário ilustrativo", "valores
+  ilustrativos") e cada citação está marcada como "exemplo fictício". Nada
+  fica escondido num tooltip.
+- **Refresh de tokens** (`globals.css`), propagado à app: `--radius`
+  0.625rem → 0.5rem (menos arredondado, mais editorial) e `--primary`
+  ligeiramente mais saturado nos dois temas. Mais nada mudou de cor.
+
+### Bugs reais encontrados a verificar (e corrigidos)
+
+1. **Sem JavaScript a landing ficava em branco.** O `framer-motion` escreve o
+   `opacity: 0` inicial já no HTML do servidor, portanto sem JS ninguém
+   dispara a animação e o texto ficava invisível — não sem animação:
+   invisível. Corrigido com um `<noscript>` em `layout.tsx` que devolve
+   `[data-reveal]` ao estado final.
+2. **Contraste abaixo do mínimo na coluna riscada da secção "Diferença"**
+   (3.34:1, medido). Passou a usar a cor completa de `muted-foreground`
+   (6.14:1) — continua a ler-se como secundária pelo risco, não pela cor.
+3. **Aviso do rodapé a 12px** — subido para 13px com `leading-relaxed`: um
+   aviso de honestidade tem de ser confortável de ler.
+4. **Header preso ao `useScroll` do framer-motion** — passou a listener nativo
+   de `scroll`, que não depende de `requestAnimationFrame` e por isso não
+   fica preso no estado inicial quando o separador volta de segundo plano.
+
+### Verificação: o que foi e o que NÃO foi confirmado
+
+Feito e passado: `pnpm typecheck`, `pnpm lint`, `pnpm test:unit` (38 testes,
+sem regressão); contraste medido em código (canvas + WCAG) na landing e em
+`/app/inbox` nos dois temas — todos os textos ≥ 4.5:1 depois das correções;
+fontes corretas aplicadas; sem overflow horizontal a 375px, 768px, 1024px e
+1440px; conteúdo completo no DOM.
+
+**Não confirmado visualmente**: a meio da sessão o painel do browser ficou
+escondido (`document.visibilityState === "hidden"`), estado em que o Chrome
+não pinta nem dispara eventos de scroll — medi zero eventos. Logo, ficaram
+por ver com os próprios olhos: o comportamento do header no scroll, os
+reveals, a troca sticky da secção "produto" e o aspeto geral abaixo do hero
+(só o hero foi visto renderizado). O `prefers-reduced-motion` está garantido
+por código (`useReducedMotion` em todas as primitivas + bloco `@media` global
+no `globals.css`) mas também não foi emulado no browser. **Fica para o
+utilizador confirmar a olho.**
+
+### Fora do âmbito (não é esquecimento)
+
+- **UX da app intocada**: nenhuma mudança em `components/mail`, `ai`,
+  `dashboard`, `tasks`, `calendar` — só herdaram os tokens.
+- **Contrastes fracos que já existiam na app** e que este trabalho não
+  introduziu nem corrigiu (medidos em `/app/inbox`, tema claro): iniciais dos
+  avatares (2.85–3.63:1), chips de label (3.31:1) e badge de prioridade
+  (3.91:1). Vêm de cores da paleta Tailwind escritas nos componentes, não dos
+  tokens. Ficam para a passagem de acessibilidade da Fase 7 completa.
+- **Sem imagens/vídeo**: a landing é 100% tipografia, CSS e SVG inline — não
+  há assets a otimizar nem lazy loading a fazer.
 
 ## Notas operacionais que ainda importam
 

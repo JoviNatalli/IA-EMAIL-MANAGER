@@ -1,117 +1,131 @@
+/**
+ * Preços em composição editorial (linhas, não três cards iguais). Os valores
+ * são ilustrativos e a secção diz isso à cabeça — não há cobrança nenhuma
+ * neste projeto (spec §8/§13).
+ */
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Reveal } from "@/components/marketing/motion-primitives";
 import { cn } from "@/lib/utils";
 
 const plans = [
   {
-    name: "Starter",
+    name: "Demo",
     price: "€0",
-    period: "/mês",
-    description: "Para experimentar o essencial.",
-    features: [
-      "1 conta de email",
-      "Resumos de email com IA",
-      "Categorização automática",
-      "Pesquisa por operadores",
-    ],
-    cta: "Começar grátis",
-    highlighted: false,
+    period: "para sempre",
+    description: "Uma inbox fictícia completa, sem ligar conta nenhuma.",
+    features: ["Inbox de demonstração", "Resumos e prioridade", "Copiloto com confirmações"],
+    cta: "Entrar no demo",
+    featured: false,
   },
   {
     name: "Pro",
     price: "€12",
-    period: "/mês",
+    period: "por mês",
     description: "Para quem vive na inbox todos os dias.",
     features: [
-      "Contas ilimitadas",
-      "AI Assistant com tool calling",
-      "Daily briefing + deteção de reuniões",
-      "Pesquisa semântica",
-      "Extração de tarefas",
+      "Gmail real via OAuth",
+      "Agente com 20 ferramentas",
+      "Tarefas, calendário e briefing diário",
+      "Escolha do provider de IA",
     ],
-    cta: "Experimentar Pro",
-    highlighted: true,
+    cta: "Experimentar",
+    featured: true,
   },
   {
-    name: "Team",
+    name: "Equipa",
     price: "€29",
-    period: "/utilizador/mês",
-    description: "Para equipas que partilham inboxes.",
-    features: [
-      "Tudo do Pro",
-      "Labels e fluxos partilhados",
-      "Controlo de privacidade por equipa",
-      "Suporte prioritário",
-    ],
-    cta: "Falar com vendas",
-    highlighted: false,
+    period: "por utilizador / mês",
+    description: "Para equipas que partilham caixas e fluxos.",
+    features: ["Tudo do Pro", "Labels e fluxos partilhados", "Controlo de privacidade por equipa"],
+    cta: "Falar connosco",
+    featured: false,
   },
 ];
 
 export function Pricing() {
   return (
-    <section id="pricing" className="border-y border-border bg-secondary/40">
-      <div className="mx-auto max-w-6xl px-6 py-24">
-        <div className="mx-auto max-w-xl text-center">
-          <h2 className="text-3xl font-semibold tracking-tight text-foreground">
-            Preços simples
-          </h2>
-          <p className="mt-3 text-sm text-muted-foreground">
-            Preços ilustrativos — a app está em desenvolvimento (portfólio).
+    <section id="precos" className="relative border-t border-border">
+      <div className="mx-auto max-w-[104rem] px-6 py-28 md:px-10 md:py-36">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="label-technical flex items-center gap-3 text-muted-foreground">
+              <span className="inline-block h-px w-8 bg-primary" aria-hidden />
+              Preços
+            </p>
+            <Reveal>
+              <h2 className="mt-8 font-display text-[clamp(2.25rem,5vw,4.5rem)] leading-[0.94] tracking-[-0.02em] text-foreground">
+                Simples, como devia ser.
+              </h2>
+            </Reveal>
+          </div>
+          <p className="max-w-sm border-l border-warning/60 pl-4 font-editorial text-sm leading-relaxed text-muted-foreground">
+            <span className="label-technical mb-1.5 block text-warning">Valores ilustrativos</span>
+            Nada é cobrado: o Nuvoly é um projeto de portfólio e não tem
+            pagamentos ativos. Os planos existem para mostrar como a oferta
+            seria estruturada.
           </p>
         </div>
 
-        <div className="mt-14 grid gap-6 lg:grid-cols-3">
-          {plans.map((plan) => (
-            <div
+        <div className="mt-20 border-t border-border">
+          {plans.map((plan, index) => (
+            <Reveal
               key={plan.name}
+              delay={index * 0.07}
               className={cn(
-                "flex flex-col gap-6 rounded-xl border p-6",
-                plan.highlighted
-                  ? "border-primary bg-card shadow-lg shadow-primary/10"
-                  : "border-border bg-card",
+                "group grid grid-cols-1 items-start gap-6 border-b border-border py-10 transition-colors md:grid-cols-12 md:gap-8 md:py-12",
+                plan.featured && "bg-accent/20",
               )}
             >
-              <div>
-                <h3 className="text-sm font-semibold text-foreground">
+              <div className="md:col-span-3">
+                <h3 className="font-display text-3xl leading-none tracking-tight text-foreground">
                   {plan.name}
                 </h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  {plan.description}
+                {plan.featured && (
+                  <span className="label-technical mt-3 inline-block text-primary">
+                    Mais completo
+                  </span>
+                )}
+              </div>
+
+              <div className="md:col-span-3">
+                <p className="flex items-baseline gap-2">
+                  <span className="font-display text-[3.25rem] leading-none tracking-[-0.03em] text-foreground">
+                    {plan.price}
+                  </span>
                 </p>
+                <p className="label-technical mt-2 text-muted-foreground">{plan.period}</p>
               </div>
 
-              <div className="flex items-baseline gap-1">
-                <span className="text-3xl font-semibold text-foreground">
-                  {plan.price}
-                </span>
-                <span className="text-sm text-muted-foreground">
-                  {plan.period}
-                </span>
+              <div className="md:col-span-4">
+                <p className="font-editorial text-sm text-muted-foreground">{plan.description}</p>
+                <ul className="mt-4 flex flex-col gap-1.5">
+                  {plan.features.map((feature) => (
+                    <li
+                      key={feature}
+                      className="flex items-start gap-2.5 font-editorial text-sm text-foreground"
+                    >
+                      <span
+                        aria-hidden
+                        className="mt-2 inline-block h-px w-3 shrink-0 bg-primary"
+                      />
+                      {feature}
+                    </li>
+                  ))}
+                </ul>
               </div>
 
-              <ul className="flex flex-col gap-2.5">
-                {plan.features.map((feature) => (
-                  <li
-                    key={feature}
-                    className="flex items-start gap-2 text-sm text-foreground"
-                  >
-                    <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
-
-              <Button
-                variant={plan.highlighted ? "default" : "outline"}
-                asChild
-                className="mt-auto"
-              >
-                <Link href="/login">{plan.cta}</Link>
-              </Button>
-            </div>
+              <div className="md:col-span-2 md:text-right">
+                <Link
+                  href="/login"
+                  className="label-technical inline-flex items-center gap-2 rounded-full border border-border px-5 py-3 text-foreground transition-colors hover:border-primary hover:bg-primary hover:text-primary-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background"
+                >
+                  {plan.cta}
+                  <ArrowUpRight className="size-3.5" />
+                </Link>
+              </div>
+            </Reveal>
           ))}
         </div>
       </div>

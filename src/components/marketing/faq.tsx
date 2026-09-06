@@ -1,50 +1,69 @@
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+/**
+ * FAQ em composição editorial: pergunta numerada à esquerda, resposta à
+ * direita. Sem acordeão — as respostas são curtas e escondê-las só criaria
+ * um clique extra.
+ */
+import { Reveal } from "@/components/marketing/motion-primitives";
 
 const faqs = [
   {
-    question: "O Nuvoly lê e guarda o conteúdo dos meus emails?",
+    question: "O Nuvoly lê e guarda os meus emails?",
     answer:
-      "Só processa o que for necessário para a funcionalidade pedida (princípio de \"minimum necessary context\"), e as opções de privacidade em Definições controlam explicitamente se o conteúdo é enviado à IA e se as conversas com o assistente são guardadas.",
+      "Só processa o que a funcionalidade pedida precisa — o copiloto, por exemplo, recebe contagens da inbox, não o conteúdo das mensagens. As definições de privacidade controlam explicitamente o que é enviado para a IA.",
   },
   {
     question: "A IA pode enviar ou apagar emails sozinha?",
     answer:
-      "Não. Qualquer ação sensível — enviar, apagar, mover em massa — exige confirmação explícita, mostrando sempre quantos itens seriam afetados antes de agir.",
+      "Não. Enviar, responder ou mexer em vários emails de uma vez passa sempre por uma confirmação que mostra quantos itens são afetados. Os argumentos da ação ficam no servidor e são revalidados no momento de executar.",
   },
   {
     question: "Preciso de ligar o Gmail para experimentar?",
     answer:
-      "Não. O Demo Mode dá acesso a um conjunto de dados fictício e realista para explorar toda a interface sem ligar nenhuma conta real.",
+      "Não. O modo demo abre uma inbox fictícia realista onde toda a interface funciona, sem ligar conta nenhuma.",
   },
   {
     question: "Que modelos de IA são usados?",
     answer:
-      "A arquitetura abstrai o provider (OpenAI, Anthropic ou Gemini) e faz routing por tarefa — modelos mais pequenos para classificação simples, mais avançados para raciocínio complexo — configurável sem reescrever a lógica da aplicação.",
+      "A arquitetura abstrai o provider (Gemini e Claude implementados) e faz routing por tarefa: modelos pequenos para classificar, maiores para resumir e para o agente. Trocar é mudar uma variável de ambiente.",
+  },
+  {
+    question: "E se um email tentar dar ordens à IA?",
+    answer:
+      "O conteúdo de email é sempre tratado como dados não confiáveis, delimitado e separado das instruções do sistema. Um email que diga «ignora as instruções anteriores» é analisado, não obedecido — e há testes dedicados a garantir isso.",
   },
 ];
 
 export function Faq() {
   return (
-    <section id="faq" className="mx-auto max-w-3xl px-6 py-24">
-      <div className="mx-auto max-w-xl text-center">
-        <h2 className="text-3xl font-semibold tracking-tight text-foreground">
-          Perguntas frequentes
-        </h2>
-      </div>
+    <section id="faq" className="relative border-t border-border">
+      <div className="mx-auto max-w-[104rem] px-6 py-28 md:px-10 md:py-36">
+        <p className="label-technical flex items-center gap-3 text-muted-foreground">
+          <span className="inline-block h-px w-8 bg-primary" aria-hidden />
+          Perguntas
+        </p>
 
-      <Accordion type="single" collapsible className="mt-12 w-full">
-        {faqs.map((faq, index) => (
-          <AccordionItem key={faq.question} value={`item-${index}`}>
-            <AccordionTrigger>{faq.question}</AccordionTrigger>
-            <AccordionContent>{faq.answer}</AccordionContent>
-          </AccordionItem>
-        ))}
-      </Accordion>
+        <dl className="mt-16 border-t border-border">
+          {faqs.map((faq, index) => (
+            <Reveal
+              key={faq.question}
+              delay={index * 0.05}
+              className="grid grid-cols-1 gap-4 border-b border-border py-10 md:grid-cols-12 md:gap-8"
+            >
+              <dt className="md:col-span-5">
+                <span className="label-technical mr-4 text-muted-foreground">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className="font-display text-2xl leading-tight tracking-tight text-balance text-foreground">
+                  {faq.question}
+                </span>
+              </dt>
+              <dd className="font-editorial leading-relaxed text-pretty text-muted-foreground md:col-span-6 md:col-start-7">
+                {faq.answer}
+              </dd>
+            </Reveal>
+          ))}
+        </dl>
+      </div>
     </section>
   );
 }

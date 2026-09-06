@@ -1,17 +1,24 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/*
+ * `.landing` partilha a paleta escura com `.dark` — a landing page é sempre
+ * "tinta" (ver src/app/page.tsx), independentemente do tema escolhido para a
+ * app. Não é um segundo sistema de tokens: são os mesmos custom properties,
+ * só re-escopados.
+ */
+@custom-variant dark (&:where(.dark, .dark *, .landing, .landing *));
 
 /*
- * MailMind design tokens
+ * Nuvoly design tokens
  * Identidade própria: base "ink & paper" (grafite/marfim), um único acento
  * confiante ("signal blue") usado com moderação — sem gradientes, sem roxo
  * genérico de "produto de IA", sem excesso de cor. OKLCH para consistência
  * perceptual entre light/dark.
  */
 :root {
-  --radius: 0.625rem;
+  /* Menos arredondado do que o default shadcn: mais próximo do editorial. */
+  --radius: 0.5rem;
 
   /* Base neutra — "paper" levemente quente, nunca branco puro */
   --background: oklch(0.9863 0.0035 84.57);
@@ -24,7 +31,7 @@
   --popover-foreground: oklch(0.18 0.0125 265);
 
   /* Acento único: "signal blue" — confiante, não é o roxo-IA genérico */
-  --primary: oklch(0.4 0.135 246);
+  --primary: oklch(0.42 0.15 245);
   --primary-foreground: oklch(0.98 0.005 246);
 
   --secondary: oklch(0.955 0.005 84.57);
@@ -47,7 +54,7 @@
 
   --border: oklch(0.9 0.006 84.57);
   --input: oklch(0.9 0.006 84.57);
-  --ring: oklch(0.4 0.135 246 / 0.5);
+  --ring: oklch(0.42 0.15 245 / 0.5);
 
   /* Prioridade (usado em badges de email — Fase 2+) */
   --priority-high: oklch(0.55 0.2 25);
@@ -57,15 +64,18 @@
   /* Sidebar tem elevação própria, ligeiramente distinta do body */
   --sidebar: oklch(0.965 0.004 84.57);
   --sidebar-foreground: oklch(0.24 0.0125 265);
-  --sidebar-primary: oklch(0.4 0.135 246);
+  --sidebar-primary: oklch(0.42 0.15 245);
   --sidebar-primary-foreground: oklch(0.98 0.005 246);
   --sidebar-accent: oklch(0.93 0.008 84.57);
   --sidebar-accent-foreground: oklch(0.2 0.0125 265);
   --sidebar-border: oklch(0.9 0.006 84.57);
-  --sidebar-ring: oklch(0.4 0.135 246 / 0.5);
+  --sidebar-ring: oklch(0.42 0.15 245 / 0.5);
 }
 
-.dark {
+.dark,
+.landing {
+  color-scheme: dark;
+
   --background: oklch(0.17 0.0115 265);
   --foreground: oklch(0.94 0.004 84.57);
 
@@ -75,7 +85,7 @@
   --popover: oklch(0.22 0.013 265);
   --popover-foreground: oklch(0.94 0.004 84.57);
 
-  --primary: oklch(0.68 0.135 246);
+  --primary: oklch(0.72 0.15 244);
   --primary-foreground: oklch(0.15 0.02 246);
 
   --secondary: oklch(0.26 0.013 265);
@@ -98,7 +108,7 @@
 
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.68 0.135 246 / 0.5);
+  --ring: oklch(0.72 0.15 244 / 0.5);
 
   --priority-high: oklch(0.65 0.2 25);
   --priority-medium: oklch(0.75 0.15 75);
@@ -106,17 +116,22 @@
 
   --sidebar: oklch(0.145 0.011 265);
   --sidebar-foreground: oklch(0.9 0.004 84.57);
-  --sidebar-primary: oklch(0.68 0.135 246);
+  --sidebar-primary: oklch(0.72 0.15 244);
   --sidebar-primary-foreground: oklch(0.15 0.02 246);
   --sidebar-accent: oklch(0.24 0.013 265);
   --sidebar-accent-foreground: oklch(0.9 0.004 84.57);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.68 0.135 246 / 0.5);
+  --sidebar-ring: oklch(0.72 0.15 244 / 0.5);
 }
 
 @theme inline {
+  /* App: Geist — a mais legível para uma UI densa de inbox. */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  /* Landing: par editorial (display serifado + grotesca) + mono técnica. */
+  --font-display: var(--font-instrument-serif);
+  --font-editorial: var(--font-archivo);
+  --font-technical: var(--font-jetbrains-mono);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -177,5 +192,59 @@
   .scrollbar-thin {
     scrollbar-width: thin;
     scrollbar-color: var(--color-border) transparent;
+  }
+
+  /* ── Landing (Fase 7) ────────────────────────────────────────────────
+   * Utilitários só usados pela landing page. Nenhum é aplicado à app.
+   */
+
+  /* Grão fino sobre a tinta: tira o "digital liso" sem custar imagens. */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.28;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  }
+
+  /* Malha de rigor tipográfico — a grelha editorial fica visível ao de leve. */
+  .editorial-grid {
+    background-image: linear-gradient(to right, var(--color-border) 1px, transparent 1px);
+    background-size: calc(100% / 6) 100%;
+  }
+
+  /* Rótulos técnicos (mono, caixa alta, tracking largo). */
+  .label-technical {
+    font-family: var(--font-technical), ui-monospace, monospace;
+    font-size: 0.6875rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+  }
+
+  /* Sublinhado que cresce no hover — sem deslocar o layout. */
+  .underline-grow {
+    background-image: linear-gradient(currentColor, currentColor);
+    background-position: 0 100%;
+    background-repeat: no-repeat;
+    background-size: 0% 1px;
+    transition: background-size 320ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .underline-grow:hover,
+  .underline-grow:focus-visible {
+    background-size: 100% 1px;
+  }
+}
+
+/* Sem animação para quem a desativou no sistema (spec §36). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
