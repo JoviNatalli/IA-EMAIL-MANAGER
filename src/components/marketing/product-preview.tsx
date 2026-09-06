@@ -4,7 +4,9 @@
  * medida que o utilizador desce a página.
  *
  * Dados ilustrativos, sem qualquer chamada de rede — é uma reconstituição
- * fiel da UI real, não a app embebida.
+ * fiel da UI real, não a app embebida. Usa `font-sans` (Geist) de propósito:
+ * é uma fotografia da aplicação, não faria sentido compô-la com a serifa da
+ * edição.
  */
 import { Archive, Check, Inbox, Send, ShieldAlert, Sparkles, Star, Tag } from "lucide-react";
 
@@ -19,7 +21,7 @@ export function ProductSurface({ view }: { view: SurfaceView }) {
         <span className="size-2 rounded-full bg-muted-foreground/30" />
         <span className="size-2 rounded-full bg-muted-foreground/30" />
         <span className="size-2 rounded-full bg-muted-foreground/30" />
-        <span className="label-technical ml-3 text-muted-foreground/70">nuvoly · inbox</span>
+        <span className="folio ml-3 text-muted-foreground">nuvoly · inbox</span>
       </div>
 
       <div className="flex min-h-[19rem]">
@@ -56,13 +58,13 @@ function RailItem({
   return (
     <span
       className={cn(
-        "flex items-center gap-2.5 rounded-md px-2.5 py-2 font-editorial text-xs",
+        "flex items-center gap-2.5 rounded-md px-2.5 py-2 font-sans text-xs",
         active ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-muted-foreground",
       )}
     >
       <Icon className="size-3.5 shrink-0" />
       <span className="flex-1">{label}</span>
-      {count && <span className="label-technical text-[0.625rem]">{count}</span>}
+      {count && <span className="folio text-[0.625rem]">{count}</span>}
     </span>
   );
 }
@@ -77,7 +79,7 @@ const rows = [
 function TriageView() {
   return (
     <div className="flex flex-col gap-3">
-      <p className="label-technical text-muted-foreground">Precisa de atenção</p>
+      <p className="folio text-muted-foreground">Precisa de atenção</p>
       <div className="flex flex-col">
         {rows.map((row) => (
           <div
@@ -95,15 +97,15 @@ function TriageView() {
             <div className="min-w-0 flex-1">
               <p
                 className={cn(
-                  "truncate font-editorial text-xs",
+                  "truncate font-sans text-xs",
                   row.unread ? "font-semibold text-card-foreground" : "text-muted-foreground",
                 )}
               >
                 {row.from}
               </p>
-              <p className="truncate font-editorial text-xs text-muted-foreground">{row.subject}</p>
+              <p className="truncate font-sans text-xs text-muted-foreground">{row.subject}</p>
             </div>
-            <span className="label-technical shrink-0 text-[0.625rem] text-muted-foreground/70">
+            <span className="folio shrink-0 text-[0.625rem] text-muted-foreground">
               {row.tone === "high" ? "alta" : row.tone === "medium" ? "média" : "baixa"}
             </span>
           </div>
@@ -120,13 +122,13 @@ function InsightsView() {
         {["Prioridade alta", "Trabalho", "Precisa de resposta"].map((tag) => (
           <span
             key={tag}
-            className="label-technical rounded-full border border-border px-2.5 py-1 text-[0.625rem] text-muted-foreground"
+            className="folio rounded-full border border-border px-2.5 py-1 text-[0.625rem] text-muted-foreground"
           >
             {tag}
           </span>
         ))}
       </div>
-      <p className="font-editorial text-xs leading-relaxed text-card-foreground">
+      <p className="font-sans text-xs leading-relaxed text-card-foreground">
         A Sofia reporta erro 500 ao guardar preferências desde as 09h, associado
         ao deploy de ontem. Pede análise dos logs e uma atualização hoje.
       </p>
@@ -136,12 +138,12 @@ function InsightsView() {
           "Relacionado com o deploy da noite anterior",
           "Sofia aguarda ponto de situação",
         ].map((point) => (
-          <li key={point} className="font-editorial text-[0.6875rem] text-muted-foreground">
+          <li key={point} className="font-sans text-[0.6875rem] text-muted-foreground">
             {point}
           </li>
         ))}
       </ul>
-      <p className="rounded-md bg-accent/40 px-3 py-2 font-editorial text-[0.6875rem] text-accent-foreground">
+      <p className="rounded-md bg-accent/40 px-3 py-2 font-sans text-[0.6875rem] text-accent-foreground">
         Sugestão: verificar os logs de produção e responder com o ponto de situação.
       </p>
     </div>
@@ -156,17 +158,17 @@ function ReplyView() {
         <Field label="Comprimento" value="Média" />
       </div>
       <div className="rounded-md border border-border p-3">
-        <p className="font-editorial text-xs leading-relaxed text-card-foreground">
+        <p className="font-sans text-xs leading-relaxed text-card-foreground">
           Olá Sofia, peço desculpa pela demora. Já estou a investigar os logs de
           produção para identificar a origem das falhas associadas ao deploy e
           dou-te uma atualização concreta dentro de uma hora.
         </p>
       </div>
       <div className="flex items-center justify-between">
-        <span className="label-technical text-[0.625rem] text-muted-foreground">
+        <span className="folio text-[0.625rem] text-muted-foreground">
           Rascunho · por rever
         </span>
-        <span className="label-technical inline-flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1.5 text-[0.625rem] text-background">
+        <span className="folio inline-flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1.5 text-[0.625rem] text-background">
           <Send className="size-3" />
           Enviar
         </span>
@@ -178,27 +180,27 @@ function ReplyView() {
 function ConfirmView() {
   return (
     <div className="flex flex-col gap-3">
-      <p className="label-technical text-muted-foreground">Copiloto</p>
-      <p className="font-editorial text-xs text-muted-foreground">
+      <p className="folio text-muted-foreground">Copiloto</p>
+      <p className="font-sans text-xs text-muted-foreground">
         &ldquo;Arquiva as newsletters desta semana&rdquo;
       </p>
 
       <div className="rounded-md border border-warning/40 bg-warning/5 p-3">
-        <p className="flex items-center gap-2 font-editorial text-xs font-semibold text-card-foreground">
+        <p className="flex items-center gap-2 font-sans text-xs font-semibold text-card-foreground">
           <ShieldAlert className="size-3.5 shrink-0 text-warning" />
           Confirmação necessária
         </p>
-        <p className="mt-1.5 font-editorial text-[0.6875rem] text-muted-foreground">
+        <p className="mt-1.5 font-sans text-[0.6875rem] text-muted-foreground">
           Arquivar 6 conversas etiquetadas como Newsletter.
         </p>
-        <p className="mt-1 font-editorial text-[0.6875rem] text-muted-foreground">
+        <p className="mt-1 font-sans text-[0.6875rem] text-muted-foreground">
           Itens afetados: <span className="font-semibold text-card-foreground">6</span>
         </p>
         <div className="mt-3 flex justify-end gap-2">
-          <span className="label-technical rounded-full px-3 py-1.5 text-[0.625rem] text-muted-foreground">
+          <span className="folio rounded-full px-3 py-1.5 text-[0.625rem] text-muted-foreground">
             Cancelar
           </span>
-          <span className="label-technical inline-flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1.5 text-[0.625rem] text-background">
+          <span className="folio inline-flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1.5 text-[0.625rem] text-background">
             <Check className="size-3" />
             Confirmar
           </span>
@@ -211,8 +213,8 @@ function ConfirmView() {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <span className="flex flex-col gap-1 rounded-md border border-border px-3 py-2">
-      <span className="label-technical text-[0.5625rem] text-muted-foreground">{label}</span>
-      <span className="font-editorial text-xs text-card-foreground">{value}</span>
+      <span className="folio text-[0.5625rem] text-muted-foreground">{label}</span>
+      <span className="font-sans text-xs text-card-foreground">{value}</span>
     </span>
   );
 }

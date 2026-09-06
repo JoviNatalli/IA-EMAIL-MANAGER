@@ -1,42 +1,49 @@
-import { Difference } from "@/components/marketing/difference";
-import { Faq } from "@/components/marketing/faq";
-import { Features } from "@/components/marketing/features";
-import { FinalCta } from "@/components/marketing/final-cta";
-import { Hero } from "@/components/marketing/hero";
-import { Pricing } from "@/components/marketing/pricing";
-import { SiteFooter } from "@/components/marketing/site-footer";
-import { SiteHeader } from "@/components/marketing/site-header";
-import { SpecimenStrip } from "@/components/marketing/specimen-strip";
-import { Testimonials } from "@/components/marketing/testimonials";
-import { Workflow } from "@/components/marketing/workflow";
+import { BackPage } from "@/components/marketing/back-page";
+import { EditionIndex } from "@/components/marketing/edition-index";
+import { Editorial } from "@/components/marketing/editorial";
+import { FrontPage } from "@/components/marketing/front-page";
+import { Letters } from "@/components/marketing/letters";
+import { Masthead } from "@/components/marketing/masthead";
+import { Plates } from "@/components/marketing/plates";
+import { Report } from "@/components/marketing/report";
+import { Subscriptions } from "@/components/marketing/subscriptions";
+import { Verification } from "@/components/marketing/verification";
 
 /**
- * Landing page (Fase 7 — redesign).
+ * Homepage — composta como uma EDIÇÃO IMPRESSA, não como uma landing de SaaS.
  *
- * A narrativa segue seis momentos: impacto (Hero) → contexto (Workflow) →
- * demonstração (Features) → prova (Testimonials) → diferenciação
- * (Difference) → conversão (Pricing/Faq/FinalCta).
+ * A premissa: um produto de email é correspondência, e a forma natural de
+ * apresentar correspondência é um jornal. Daí o esqueleto ser o de uma
+ * edição — cabeçalho com data, primeira página, sumário, cadernos, editorial,
+ * tabela de assinaturas, correio dos leitores e colofão — em vez do
+ * hero → features → testemunhos → preços → FAQ que qualquer template tem.
  *
- * `.landing` fixa a paleta escura só para esta página, independentemente do
- * tema escolhido para a app: a landing é a "tinta", o produto é o trabalho.
- * São os mesmos tokens da app, apenas re-escopados (ver globals.css).
+ * `.landing` fixa a paleta de PAPEL só para esta página, mesmo quando a app
+ * está em tema escuro. São os mesmos tokens da app, apenas re-escopados
+ * (ver globals.css).
  */
 export default function LandingPage() {
+  const editionDate = new Intl.DateTimeFormat("pt-PT", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date());
+
   return (
-    <div className="landing grain relative flex min-h-svh flex-col bg-background text-foreground">
-      <SiteHeader />
+    <div className="landing paper relative flex min-h-svh flex-col bg-background text-foreground">
+      <Masthead editionDate={editionDate} />
       <main className="flex-1">
-        <Hero />
-        <SpecimenStrip />
-        <Workflow />
-        <Features />
-        <Testimonials />
-        <Difference />
-        <Pricing />
-        <Faq />
-        <FinalCta />
+        <FrontPage />
+        <EditionIndex />
+        <Report />
+        <Plates />
+        <Verification />
+        <Editorial />
+        <Subscriptions />
+        <Letters />
       </main>
-      <SiteFooter />
+      <BackPage />
     </div>
   );
 }
