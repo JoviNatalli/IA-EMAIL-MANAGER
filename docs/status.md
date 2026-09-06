@@ -422,6 +422,9 @@ seguinte. Notas para quem continuar:
   uma base de dados de teste com dois utilizadores — mantém-se a decisão
   da Fase 4 de deixar os testes de integração para verificação manual.
 
+Commit `9943a72` no branch `phase-5-ai-agent` (não fiz push nem merge para
+`main` — decisão do utilizador).
+
 ### Testado manualmente (2026-09-06, Gemini real)
 
 Pesquisa + resumo encadeados (`searchEmails` → `summarizeThread`); envio de
