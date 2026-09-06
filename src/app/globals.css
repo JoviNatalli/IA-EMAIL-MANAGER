@@ -128,10 +128,10 @@
   /* App: Geist — a mais legível para uma UI densa de inbox. */
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-  /* Landing: par editorial (display serifado + grotesca) + mono técnica. */
-  --font-display: var(--font-instrument-serif);
-  --font-editorial: var(--font-archivo);
-  --font-technical: var(--font-jetbrains-mono);
+  /* Landing: trio variável (display + corpo + mono técnica). */
+  --font-display: var(--font-bricolage);
+  --font-editorial: var(--font-instrument-sans);
+  --font-technical: var(--font-martian-mono);
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -215,12 +215,40 @@
     background-size: calc(100% / 6) 100%;
   }
 
+  /*
+   * Títulos de secção: a Bricolage é variável, por isso o "peso de cartaz"
+   * vem dos eixos e não de um ficheiro bold separado. `wdth` ligeiramente
+   * condensado é o que lhe dá a densidade das referências de cartaz.
+   */
+  .display-poster {
+    font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+    font-variation-settings: "wdth" 82, "wght" 700, "opsz" 96;
+    /* O `tracking-*` fica em cada título: são valores afinados por tamanho. */
+  }
+
   /* Rótulos técnicos (mono, caixa alta, tracking largo). */
   .label-technical {
     font-family: var(--font-technical), ui-monospace, monospace;
+    /* A Martian Mono é larga: menos tracking do que uma mono normal pediria. */
     font-size: 0.6875rem;
-    letter-spacing: 0.16em;
+    font-variation-settings: "wdth" 100;
+    letter-spacing: 0.1em;
+    line-height: 1.6;
     text-transform: uppercase;
+  }
+
+  /* Entrada do título: cada palavra sobe do seu próprio recorte. */
+  .animate-word-in {
+    animation: word-in 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  /* Faixa de espécime — o ticker técnico. Pausa no hover/foco. */
+  .marquee-track {
+    animation: marquee 42s linear infinite;
+  }
+  .marquee-host:hover .marquee-track,
+  .marquee-host:focus-within .marquee-track {
+    animation-play-state: paused;
   }
 
   /* Sublinhado que cresce no hover — sem deslocar o layout. */
@@ -234,6 +262,25 @@
   .underline-grow:hover,
   .underline-grow:focus-visible {
     background-size: 100% 1px;
+  }
+}
+
+@keyframes word-in {
+  from {
+    transform: translateY(110%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    /* -50% porque o conteúdo está duplicado: o ciclo fecha sem salto. */
+    transform: translateX(-50%);
   }
 }
 

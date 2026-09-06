@@ -43,7 +43,7 @@ export function Testimonials() {
               Prova
             </p>
             <Reveal>
-              <h2 className="mt-8 max-w-2xl font-display text-[clamp(2.25rem,5vw,4.5rem)] leading-[0.94] tracking-[-0.02em] text-balance text-foreground">
+              <h2 className="display-poster mt-8 max-w-2xl font-display text-[clamp(2.25rem,5vw,4.5rem)] leading-[0.94] tracking-[-0.02em] text-balance text-foreground">
                 Números de uma inbox de demonstração.
               </h2>
             </Reveal>
@@ -67,7 +67,7 @@ export function Testimonials() {
               delay={index * 0.08}
               className="border-b border-border py-10 sm:border-r sm:px-8 sm:last:border-r-0 sm:first:pl-0"
             >
-              <dt className="font-display text-[clamp(3rem,6vw,5.5rem)] leading-none tracking-[-0.03em] text-foreground">
+              <dt className="display-poster font-display text-[clamp(3rem,6vw,5.5rem)] leading-none tracking-[-0.03em] text-foreground">
                 {metric.value}
               </dt>
               <dd className="mt-5 max-w-xs font-editorial text-sm leading-relaxed text-muted-foreground">

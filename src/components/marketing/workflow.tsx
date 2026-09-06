@@ -38,9 +38,9 @@ export function Workflow() {
             </p>
 
             <Reveal>
-              <h2 className="mt-8 max-w-sm font-display text-[clamp(2.25rem,4.5vw,4rem)] leading-[0.95] tracking-[-0.02em] text-balance text-foreground">
-                Ninguém precisa de <em className="text-primary not-italic">mais</em> email.
-                Precisa de <em className="text-primary italic">menos</em> decisões.
+              <h2 className="display-poster mt-8 max-w-sm font-display text-[clamp(2.25rem,4.5vw,4rem)] leading-[0.95] tracking-[-0.02em] text-balance text-foreground">
+                Ninguém precisa de <em className="not-italic text-primary [font-variation-settings:'wdth'_100,'wght'_800]">mais</em> email.
+                Precisa de <em className="not-italic text-primary [font-variation-settings:'wdth'_75,'wght'_800]">menos</em> decisões.
               </h2>
             </Reveal>
 
@@ -67,7 +67,7 @@ export function Workflow() {
                   {step.number}
                 </span>
                 <div>
-                  <h3 className="font-display text-[clamp(1.75rem,3vw,2.75rem)] leading-tight tracking-[-0.01em] text-foreground">
+                  <h3 className="display-poster font-display text-[clamp(1.75rem,3vw,2.75rem)] leading-tight tracking-[-0.01em] text-foreground">
                     {step.title}
                   </h3>
                   <p className="mt-4 max-w-xl font-editorial leading-relaxed text-pretty text-muted-foreground">

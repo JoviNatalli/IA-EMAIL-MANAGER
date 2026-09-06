@@ -449,11 +449,32 @@ app não foi tocada.
   terminal. A landing é sempre escura (classe `.landing`, que re-escopa os
   MESMOS custom properties da app, não um segundo sistema de tokens); o
   produto aparece como o trabalho iluminado por cima da tinta.
-- **Tipografia**: par novo só na landing — Instrument Serif (display, serifa
-  de alto contraste), Archivo (corpo) e JetBrains Mono (rótulos e números).
-  A app mantém Geist: numa lista densa de emails continua a ser a mais
-  legível, e trocar por trocar só a tornaria pior. Tudo auto-hospedado via
-  `next/font` (sem pedidos a terceiros, sem CLS).
+- **Tipografia** (revista a 2026-09-06 depois de o utilizador partilhar
+  referências de fundições no Envato Elements): trio de fontes VARIÁVEIS só
+  na landing — **Bricolage Grotesque** (display, eixos `wdth` 75–100 e `opsz`
+  12–96), **Instrument Sans** (corpo) e **Martian Mono** (rótulos e números).
+  A primeira versão usava Instrument Serif + Archivo + JetBrains Mono; a
+  troca foi para apanhar a energia de cartaz condensado das referências e,
+  sobretudo, para permitir a interação de assinatura abaixo. A app mantém
+  Geist: numa lista densa de emails continua a ser a mais legível, e trocar
+  por trocar só a tornaria pior. Tudo auto-hospedado via `next/font`.
+- **Interação de assinatura — o título é um espécime tipográfico vivo**
+  (`variable-headline.tsx`): os eixos da fonte respondem à distância do
+  cursor, palavra a palavra (condensado 75 em repouso, aberto 100 sob o
+  rato). Não é um efeito por cima do texto — é o desenho da letra a mudar,
+  coisa que só uma fonte variável permite, e que nenhum template consegue
+  imitar com uma fonte estática. Escreve direto no `style` dentro de um
+  `requestAnimationFrame` (zero re-renders do React por frame), desliga-se
+  em `prefers-reduced-motion` e nem chega a montar em dispositivos sem rato.
+- **Faixa de espécime** (`specimen-strip.tsx`): ticker técnico entre o hero e
+  o contexto, no espírito dos cartões de fundição — mas com factos reais do
+  produto e da fonte, não texto decorativo. Pausa no hover e no foco.
+
+  Nota sobre as referências: as fontes do Envato Elements exigem subscrição
+  ativa e a licença não permite deixar os ficheiros num repositório público,
+  por isso o que foi feito não foi copiá-las — foi identificar o que nelas
+  atrai (cartaz condensado, mono de engenharia, contraste alto) e chegar lá
+  com fontes livres e auto-hospedáveis.
 - **Narrativa em seis momentos** (impacto → contexto → demonstração → prova →
   diferenciação → conversão), com a secção "produto" em sticky storytelling:
   a superfície do produto muda conforme a capacidade que está a ser lida.

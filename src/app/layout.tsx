@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { GeistSans } from "geist/font/sans";
 import { GeistMono } from "geist/font/mono";
-import { Archivo, Instrument_Serif, JetBrains_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Instrument_Sans, Martian_Mono } from "next/font/google";
 
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -11,28 +11,34 @@ import "./globals.css";
 /*
  * Duas vozes tipográficas, de propósito:
  * - App (Geist): neutra e compacta, é a que aguenta uma inbox densa.
- * - Landing (Instrument Serif + Archivo + JetBrains Mono): editorial, com
- *   personalidade. Serifa de alto contraste para os títulos, grotesca para o
- *   corpo, mono para rótulos e números.
+ * - Landing: trio de fontes VARIÁVEIS, escolhido para a página se poder
+ *   comportar como um espécime tipográfico vivo (ver `variable-headline.tsx`).
+ *     · Bricolage Grotesque — display com eixos `wdth` (75–100) e `opsz`
+ *       (12–96): dá a energia de cartaz condensado das referências sem trocar
+ *       de ficheiro de fonte.
+ *     · Instrument Sans — corpo contemporâneo, nítido em ecrã.
+ *     · Martian Mono — mono larga e "de engenharia" para rótulos e números.
  * Todas auto-hospedadas via `next/font` — sem pedidos a terceiros, sem CLS.
  */
-const instrumentSerif = Instrument_Serif({
+const bricolage = Bricolage_Grotesque({
   subsets: ["latin"],
-  weight: "400",
-  style: ["normal", "italic"],
-  variable: "--font-instrument-serif",
+  weight: "variable",
+  axes: ["opsz", "wdth"],
+  variable: "--font-bricolage",
   display: "swap",
 });
 
-const archivo = Archivo({
+const instrumentSans = Instrument_Sans({
   subsets: ["latin"],
-  variable: "--font-archivo",
+  variable: "--font-instrument-sans",
   display: "swap",
 });
 
-const jetbrainsMono = JetBrains_Mono({
+const martianMono = Martian_Mono({
   subsets: ["latin"],
-  variable: "--font-jetbrains-mono",
+  weight: "variable",
+  axes: ["wdth"],
+  variable: "--font-martian-mono",
   display: "swap",
 });
 
@@ -57,7 +63,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang="pt-PT"
       suppressHydrationWarning
-      className={`${GeistSans.variable} ${GeistMono.variable} ${instrumentSerif.variable} ${archivo.variable} ${jetbrainsMono.variable}`}
+      className={`${GeistSans.variable} ${GeistMono.variable} ${bricolage.variable} ${instrumentSans.variable} ${martianMono.variable}`}
     >
       <head>
         {/*

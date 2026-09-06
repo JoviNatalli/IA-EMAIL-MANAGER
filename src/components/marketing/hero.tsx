@@ -13,7 +13,8 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { ArrowUpRight } from "lucide-react";
 
-import { Magnetic, RevealWords } from "@/components/marketing/motion-primitives";
+import { Magnetic } from "@/components/marketing/motion-primitives";
+import { VariableHeadline } from "@/components/marketing/variable-headline";
 import { cn } from "@/lib/utils";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
@@ -66,10 +67,11 @@ export function Hero() {
             Copiloto de inbox · PT-PT
           </motion.p>
 
-          <h1 className="mt-8 font-display text-[clamp(3rem,9vw,7.5rem)] leading-[0.88] tracking-[-0.02em] text-foreground">
-            <RevealWords text="Ruído a entrar." />
-            <span className="block text-primary italic">
-              <RevealWords text="Sinal a sair." delay={0.22} />
+          {/* Passe o rato por cima: os eixos da fonte abrem debaixo do cursor. */}
+          <h1 className="display-poster mt-8 font-display text-[clamp(3.25rem,9.5vw,8.5rem)] leading-[0.84] tracking-[-0.035em] text-foreground">
+            <VariableHeadline text="Ruído a entrar." />
+            <span className="block text-primary">
+              <VariableHeadline text="Sinal a sair." delay={0.18} />
             </span>
           </h1>
 

@@ -35,7 +35,7 @@ export function Difference() {
               Diferença
             </p>
             <Reveal>
-              <h2 className="mt-8 max-w-md font-display text-[clamp(2.25rem,5vw,4.5rem)] leading-[0.94] tracking-[-0.02em] text-balance text-foreground">
+              <h2 className="display-poster mt-8 max-w-md font-display text-[clamp(2.25rem,5vw,4.5rem)] leading-[0.94] tracking-[-0.02em] text-balance text-foreground">
                 Não é um chatbot ao lado da inbox.
               </h2>
             </Reveal>

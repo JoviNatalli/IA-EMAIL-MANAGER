@@ -17,7 +17,7 @@ export function SiteFooter() {
       <div className="mx-auto max-w-[104rem] px-6 pt-20 pb-10 md:px-10">
         <div className="flex flex-col justify-between gap-10 md:flex-row md:items-start">
           <div>
-            <p className="font-display text-5xl leading-none tracking-tight text-foreground md:text-7xl">
+            <p className="display-poster font-display text-5xl leading-none text-foreground md:text-7xl">
               Nuvoly
             </p>
             <p className="label-technical mt-4 text-muted-foreground">

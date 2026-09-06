@@ -81,7 +81,7 @@ export function Features() {
           O produto
         </p>
         <Reveal>
-          <h2 className="mt-8 max-w-3xl font-display text-[clamp(2.25rem,5.5vw,5rem)] leading-[0.94] tracking-[-0.02em] text-balance text-foreground">
+          <h2 className="display-poster mt-8 max-w-3xl font-display text-[clamp(2.25rem,5.5vw,5rem)] leading-[0.94] tracking-[-0.02em] text-balance text-foreground">
             Quatro momentos em que a inbox deixa de pesar.
           </h2>
         </Reveal>
@@ -134,7 +134,7 @@ export function Features() {
               >
                 {capability.index}
               </p>
-              <h3 className="mt-5 max-w-lg font-display text-[clamp(1.75rem,3.2vw,3rem)] leading-[1.02] tracking-[-0.015em] text-balance text-foreground">
+              <h3 className="display-poster mt-5 max-w-lg font-display text-[clamp(1.75rem,3.2vw,3rem)] leading-[1.02] tracking-[-0.015em] text-balance text-foreground">
                 {capability.title}
               </h3>
               <p className="mt-5 max-w-lg font-editorial leading-relaxed text-pretty text-muted-foreground">

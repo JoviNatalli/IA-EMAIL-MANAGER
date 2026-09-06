@@ -60,7 +60,7 @@ export function SiteHeader() {
           className="group flex items-baseline gap-2.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background"
           aria-label="Nuvoly — início"
         >
-          <span className="font-display text-2xl leading-none tracking-tight text-foreground">
+          <span className="display-poster font-display text-2xl leading-none text-foreground">
             Nuvoly
           </span>
           <span

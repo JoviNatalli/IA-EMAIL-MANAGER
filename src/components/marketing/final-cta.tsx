@@ -28,7 +28,7 @@ export function FinalCta() {
 
       <div className="relative mx-auto max-w-[104rem] px-6 py-32 text-center md:px-10 md:py-44">
         <Reveal>
-          <h2 className="mx-auto max-w-4xl font-display text-[clamp(2.75rem,8vw,7rem)] leading-[0.9] tracking-[-0.03em] text-balance text-foreground">
+          <h2 className="display-poster mx-auto max-w-4xl font-display text-[clamp(2.75rem,8vw,7rem)] leading-[0.9] tracking-[-0.03em] text-balance text-foreground">
             Devolva a manhã a quem a merece.
           </h2>
         </Reveal>

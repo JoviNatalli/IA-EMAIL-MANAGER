@@ -55,7 +55,7 @@ export function Pricing() {
               Preços
             </p>
             <Reveal>
-              <h2 className="mt-8 font-display text-[clamp(2.25rem,5vw,4.5rem)] leading-[0.94] tracking-[-0.02em] text-foreground">
+              <h2 className="display-poster mt-8 font-display text-[clamp(2.25rem,5vw,4.5rem)] leading-[0.94] tracking-[-0.02em] text-foreground">
                 Simples, como devia ser.
               </h2>
             </Reveal>
@@ -79,7 +79,7 @@ export function Pricing() {
               )}
             >
               <div className="md:col-span-3">
-                <h3 className="font-display text-3xl leading-none tracking-tight text-foreground">
+                <h3 className="display-poster font-display text-3xl leading-none text-foreground">
                   {plan.name}
                 </h3>
                 {plan.featured && (
@@ -91,7 +91,7 @@ export function Pricing() {
 
               <div className="md:col-span-3">
                 <p className="flex items-baseline gap-2">
-                  <span className="font-display text-[3.25rem] leading-none tracking-[-0.03em] text-foreground">
+                  <span className="display-poster font-display text-[3.25rem] leading-none tracking-[-0.03em] text-foreground">
                     {plan.price}
                   </span>
                 </p>

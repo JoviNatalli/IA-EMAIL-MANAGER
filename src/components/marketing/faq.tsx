@@ -53,7 +53,7 @@ export function Faq() {
                 <span className="label-technical mr-4 text-muted-foreground">
                   {String(index + 1).padStart(2, "0")}
                 </span>
-                <span className="font-display text-2xl leading-tight tracking-tight text-balance text-foreground">
+                <span className="display-poster font-display text-2xl leading-tight text-balance text-foreground">
                   {faq.question}
                 </span>
               </dt>

@@ -6,6 +6,7 @@ import { Hero } from "@/components/marketing/hero";
 import { Pricing } from "@/components/marketing/pricing";
 import { SiteFooter } from "@/components/marketing/site-footer";
 import { SiteHeader } from "@/components/marketing/site-header";
+import { SpecimenStrip } from "@/components/marketing/specimen-strip";
 import { Testimonials } from "@/components/marketing/testimonials";
 import { Workflow } from "@/components/marketing/workflow";
 
@@ -26,6 +27,7 @@ export default function LandingPage() {
       <SiteHeader />
       <main className="flex-1">
         <Hero />
+        <SpecimenStrip />
         <Workflow />
         <Features />
         <Testimonials />

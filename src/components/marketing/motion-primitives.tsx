@@ -77,46 +77,6 @@ export function RevealGroup({
   );
 }
 
-/**
- * Título que entra palavra a palavra. Mantém as palavras como texto real
- * (nada de dividir por letras — leitores de ecrã leriam "N-u-v-o-l-y").
- */
-export function RevealWords({
-  text,
-  className,
-  wordClassName,
-  delay = 0,
-}: {
-  text: string;
-  className?: string;
-  wordClassName?: (word: string, index: number) => string | undefined;
-  delay?: number;
-}) {
-  const reduced = useReducedMotion();
-  const words = text.split(" ");
-
-  return (
-    <span className={className}>
-      {words.map((word, index) => (
-        <React.Fragment key={`${word}-${index}`}>
-          <span className="inline-block overflow-hidden align-bottom">
-            <motion.span
-              className={cn("inline-block", wordClassName?.(word, index))}
-              data-reveal
-              initial={reduced ? false : { y: "110%" }}
-              animate={reduced ? undefined : { y: 0 }}
-              transition={{ duration: 0.9, delay: delay + index * 0.055, ease: EASE }}
-            >
-              {word}
-            </motion.span>
-          </span>
-          {index < words.length - 1 ? " " : null}
-        </React.Fragment>
-      ))}
-    </span>
-  );
-}
-
 /** Parallax vertical subtil ligado ao scroll (desligado em reduced motion). */
 export function useParallax(distance = 60): {
   ref: React.RefObject<HTMLDivElement | null>;
