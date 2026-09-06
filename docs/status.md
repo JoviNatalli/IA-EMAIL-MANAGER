@@ -4,7 +4,7 @@
 > Regra do projeto: avançar fase a fase, verificar qualidade/tipos/lint e testar
 > manualmente no fim de cada fase antes de passar à seguinte (master-spec §56).
 
-## Estado (2026-09-05)
+## Estado (2026-09-06)
 
 - **Fases 1-3: completas e testadas manualmente.**
 - **Fase 4 (IA): FECHADA e testada manualmente com modelo real (Gemini).**
@@ -19,8 +19,12 @@
   reais encontrados e corrigidos nesse processo (truncagem silenciosa por
   "thinking" e um 400 em `gemini-3.5-flash-lite` por causa do
   `thinkingConfig`).
-- **Fase 5 (AI Agent com tool calling): pode começar.** Fase 4 fechada e
-  validada; falta só o utilizador confirmar que quer avançar.
+- **Fase 5 (AI Agent com tool calling): implementada e testada manualmente
+  com o Gemini real (2026-09-06).** 20 ferramentas, ciclo do agente com o
+  pipeline do §59, ações confirmáveis (§18), extração de tarefas (§20),
+  deteção de reuniões (§21) e Daily Briefing (§19). Ver "Fase 5 — AI Agent"
+  abaixo. Falta a validação final do utilizador para a dar por fechada.
+- **Fase 6 (semantic search/RAG, Gmail incremental, ...): não iniciada.**
 - Stack: Next.js 16 (App Router, Turbopack), TypeScript strict, Tailwind v4,
   design system próprio sobre Radix, Drizzle + PostgreSQL, Auth.js v5
   (Credentials + Google OAuth real), Gmail API via `fetch` direto (sem SDK
@@ -297,6 +301,135 @@ dashboard da AI Studio da própria conta):
 
 Commit `115d2c6` no branch `phase-4-gemini-provider` (não fiz push nem
 merge para `main` — decisão do utilizador).
+
+## Fase 5 — AI Agent (2026-09-06)
+
+- **Ciclo do agente** (`src/lib/ai/agent.ts`): pipeline do §59 aplicado a
+  cada tool call, sem atalhos — LLM → validação Zod dos argumentos →
+  regras de negócio + ownership → decisão de confirmação → execução. O
+  modelo nunca fala com a base de dados; devolve só o nome de uma
+  ferramenta e um objeto de argumentos, tratado como input hostil. Máximo
+  de 6 passos por pedido (trava de custo e de ciclos infinitos).
+- **20 ferramentas** (`src/lib/ai/tools/`): as 15 do §17 mais
+  `replyToThread`, `extractTasks`, `detectMeetings`, `listTasks` e
+  `createCalendarEvent` (§20/§21 pedem deteção de tarefas/reuniões "como
+  ferramentas do agente"). As que escrevem reutilizam as Server Actions da
+  Fase 2/3 em vez de falarem com a BD — assim herdam ownership, regras de
+  negócio (não se arquiva um rascunho) e a propagação para o Gmail real,
+  em vez de duplicarem essa lógica e abrirem um buraco entre o que a UI
+  faz e o que o agente faz.
+- **Ações confirmáveis (§18)**: cada ferramenta declara a política
+  (`never` / `bulk` / `always`). Enviar e responder confirmam sempre;
+  arquivar/marcar/etiquetar confirmam a partir de 2 itens. Quando é
+  preciso confirmar, o ciclo PARA, a ação fica guardada em
+  `ai_pending_action` (com os argumentos já validados, no servidor) e a UI
+  mostra o resumo + a contagem de itens afetados. O cliente só envia o
+  `id` da ação ao confirmar — nunca os argumentos —, e o servidor
+  revalida-os com o Zod da ferramenta antes de executar.
+- **Prompt injection (§31)**: os resultados de ferramentas (que trazem
+  corpos de email) vão para o modelo dentro de `<TOOL_RESULTS>`, com os
+  delimitadores internos neutralizados. Isto fechou um buraco que já
+  existia na Fase 4: um email com `</EMAIL_CONTENT>` no corpo conseguia
+  "sair" do bloco de dados. Testado em
+  `src/lib/ai/__tests__/prompts.test.ts`.
+- **Tarefas, lembretes e calendário**: tabelas novas (`task`, `reminder`,
+  `calendar_event`, `ai_pending_action`) na migração
+  `drizzle/0004_real_terrax.sql`. Páginas `/app/tasks` e `/app/calendar`
+  deixaram de ser placeholders. §20/§21 respeitados: `extractTasks` e
+  `detectMeetings` são ferramentas de LEITURA — devolvem propostas que a
+  UI mostra com botão, e nada é gravado sem clique.
+- **Daily Briefing (§19) — decisão de âmbito**: feito nesta fase e não na
+  6. Os dados que o tornam útil (tarefas, eventos, `requiresReply`) só
+  passaram a existir agora, e é uma chamada só. As contagens e destaques
+  são calculados em SQL; o modelo só escreve o texto por cima deles, e o
+  prompt proíbe-o de inventar números. O texto é gerado a pedido (botão),
+  não a cada visita — controlo de custo (§51).
+- **AI Chat da Fase 4 substituído pelo agente**: `/api/ai/chat` e o painel
+  antigo foram removidos (duas superfícies de chat era pior UX). O que se
+  perdeu foi o streaming token a token; o que se ganhou foram os eventos
+  de passo ("A pesquisar emails ✓"), as propostas e a confirmação. O
+  `streamText` continua na interface do provider, mas neste momento não
+  tem consumidor — fica para a Fase 6.
+- **Testes**: 38 unitários (`pnpm test:unit`), 14 novos em
+  `agent-tools.test.ts`: presença de todas as ferramentas do §17,
+  invariantes das políticas de confirmação (nada destrutivo sem
+  confirmação, nada que confirme sem saber contar os itens afetados) e
+  rejeição de argumentos inválidos vindos do LLM (uuid inválido, ação em
+  massa sem alvos, mais de 25 alvos, email inválido, data que não é data).
+
+### Bugs reais encontrados a testar (e corrigidos)
+
+1. **O agente voltava a propor uma ação já proposta.** Um turno que acaba
+   em confirmação não produz texto, e o histórico enviado no turno
+   seguinte ficava sem qualquer vestígio dele — o modelo achava que o
+   pedido nunca tinha sido tratado e propunha o mesmo envio outra vez.
+   Corrigido com uma nota de histórico ("a aplicação já mostrou uma
+   confirmação para X" / "o utilizador confirmou/cancelou").
+2. **`thinkingConfig` rejeitado por mais modelos do que se pensava.** A
+   heurística da Fase 4 ("modelos com 'lite' no nome não suportam")
+   partiu-se assim que o fallback trouxe o `gemini-3.6-flash`, que também
+   o recusa com 400. Agora não se adivinha: há uma lista-semente e
+   qualquer modelo que recuse é marcado em runtime e o pedido é repetido
+   sem a opção.
+3. **JSON truncado a meio nos modelos onde o thinking não se desliga.** O
+   `thoughtsTokenCount` conta para o `maxOutputTokens` (vimos 864 tokens
+   de raciocínio a comerem um orçamento de 900), e a resposta saía
+   cortada — falhando depois na validação com um erro que não explicava
+   nada. Corrigido com margem extra de tokens nesses modelos e com uma
+   verificação explícita de `finishReason === "MAX_TOKENS"`, que agora dá
+   erro em vez de deixar passar por resposta válida.
+
+### Rate limits: o que mudou face à Fase 4
+
+A previsão da Fase 4 confirmou-se — o agente gasta muito mais quota do que
+as funcionalidades anteriores (uma pergunta = várias chamadas ao modelo), e
+a quota diária gratuita do `gemini-3.5-flash` esgotou-se a meio da sessão
+de testes. Em vez de trocar o modelo fixo (que só adiava o problema),
+`src/lib/ai/models.ts` passou a ter uma CADEIA de modelos por tier: quando
+um esgota a quota diária (429 com `quotaId` "PerDay"), o provider passa
+automaticamente ao seguinte em vez de a app ficar sem IA até ao dia
+seguinte. Notas para quem continuar:
+
+- Um turno do agente demorou **~40 s** quando teve de percorrer a cadeia
+  (fallback + retries + vários passos). Com o modelo primário disponível
+  fica bastante mais rápido, mas o agente é sempre mais lento do que as
+  funcionalidades de uma chamada só.
+- Se a Fase 6 aumentar ainda mais o número de chamadas (RAG, embeddings),
+  o tier gratuito do Gemini deixa de chegar. A alternativa continua a ser
+  pôr crédito na Anthropic — o `AnthropicProvider` está implementado e a
+  tier `agent` já aponta para `claude-opus-5` (o "modelo avançado" que o
+  §52 pede para raciocínio complexo, ao contrário do "flash" que o plano
+  gratuito do Gemini obriga a usar).
+
+### Fora do âmbito desta fase (documentado, não escondido)
+
+- **Conversas do agente não são persistidas.** O histórico vive no estado
+  do cliente e perde-se ao recarregar a página; as tabelas `AIConversation`
+  /`AIMessage`/`AIToolCall` do §28 continuam por fazer. As ações
+  confirmáveis (que são o que precisa mesmo de sobreviver ao round-trip)
+  essas ficam no servidor.
+- **Tool calls de turnos anteriores não são reencenados** — só o texto
+  entra no histórico do turno seguinte. Evita reenviar (e voltar a pagar)
+  emails inteiros a cada mensagem, e evita confiar em blocos de tool call
+  vindos do cliente.
+- **Lembretes não notificam.** `createReminder` grava na tabela; não há
+  ainda nada que dispare notificações (§43 é de outra fase).
+- **Calendário é local.** A integração com o Google Calendar (§21) não
+  está feita e a UI diz isso explicitamente.
+- **Multi-tenancy testado manualmente, não em automático.** Toda
+  ferramenta que toca em emails filtra por `userId` no servidor e recusa
+  ids que não sejam do utilizador; um teste automatizado disso exigiria
+  uma base de dados de teste com dois utilizadores — mantém-se a decisão
+  da Fase 4 de deixar os testes de integração para verificação manual.
+
+### Testado manualmente (2026-09-06, Gemini real)
+
+Pesquisa + resumo encadeados (`searchEmails` → `summarizeThread`); envio de
+email com confirmação (proposta → contagem de itens → confirmar → email
+mesmo em Sent); extração de tarefas com [Criar tarefa] → tarefa em
+`/app/tasks` agrupada por dia; deteção de reunião com [Adicionar] → evento
+em `/app/calendar`; briefing diário gerado a partir das contagens reais;
+cancelamento de uma ação pendente; erro de quota diária mostrado em PT-PT.
 
 ## Notas operacionais que ainda importam
 

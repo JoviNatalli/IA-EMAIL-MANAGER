@@ -90,3 +90,46 @@ export const composeActionResultSchema = z.object({
   text: z.string().max(8000),
 });
 export type ComposeActionResult = z.infer<typeof composeActionResultSchema>;
+
+/**
+ * Task Extraction (spec §20) — propostas, nunca escritas diretamente na base
+ * de dados: a criação só acontece com clique do utilizador. `dueDate` é
+ * `null` quando o email não indica prazo (nunca inventar uma data).
+ */
+export const taskExtractionSchema = z.object({
+  tasks: z
+    .array(
+      z.object({
+        title: z.string().max(160),
+        dueDate: z.string().max(40).nullable(),
+      }),
+    )
+    .max(5),
+});
+export type TaskExtraction = z.infer<typeof taskExtractionSchema>;
+
+/**
+ * Calendar Intelligence (spec §21) — reuniões detetadas, também só como
+ * proposta. `startsAt` só é preenchido quando há data/hora explícita.
+ */
+export const meetingExtractionSchema = z.object({
+  meetings: z
+    .array(
+      z.object({
+        title: z.string().max(160),
+        startsAt: z.string().max(40),
+        endsAt: z.string().max(40).nullable(),
+        location: z.string().max(160).nullable(),
+      }),
+    )
+    .max(3),
+});
+export type MeetingExtraction = z.infer<typeof meetingExtractionSchema>;
+
+/** Daily AI Briefing (spec §19) — texto curto por cima de contagens reais. */
+export const dailyBriefingSchema = z.object({
+  headline: z.string().max(160),
+  topPriorities: z.array(z.string().max(200)).max(5),
+  suggestion: z.string().max(300).nullable(),
+});
+export type DailyBriefing = z.infer<typeof dailyBriefingSchema>;

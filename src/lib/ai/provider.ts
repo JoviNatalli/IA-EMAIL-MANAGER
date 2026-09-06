@@ -19,7 +19,7 @@ import { ApiError as GoogleApiError, GoogleGenAI } from "@google/genai";
 import { z, type ZodType } from "zod";
 
 import { AIError, AIProviderNotConfiguredError } from "./errors";
-import { resolveModel, type AITaskTier } from "./models";
+import { resolveModel, resolveModelChain, type AITaskTier } from "./models";
 
 export type AIProviderName = "anthropic" | "google";
 
@@ -44,12 +44,73 @@ export interface StreamTextParams {
   maxTokens?: number;
 }
 
+// ── Tool calling (Fase 5, spec §17) ─────────────────────────────────────
+
+export interface AIToolDefinition {
+  name: string;
+  description: string;
+  /** JSON Schema dos argumentos (gerado do Zod da ferramenta). */
+  parameters: Record<string, unknown>;
+}
+
+export interface AIToolCall {
+  id: string;
+  name: string;
+  /** Argumentos crus do LLM — NUNCA usar sem validar com o Zod da ferramenta (spec §59). */
+  args: unknown;
+}
+
+/**
+ * Mensagem de uma conversa com ferramentas. `providerState` guarda os blocos
+ * originais do provider para a resposta do assistente (parts do Gemini com
+ * `thoughtSignature`, content blocks da Anthropic) — os providers exigem que
+ * o turno anterior seja devolvido tal e qual, e reconstruí-lo a partir de
+ * texto perderia informação. É opaco de propósito: só o provider que o
+ * criou o interpreta.
+ */
+export type AIAgentMessage =
+  | { role: "user"; content: string }
+  | {
+      role: "assistant";
+      content: string;
+      toolCalls: AIToolCall[];
+      providerState?: unknown;
+    }
+  | { role: "tool"; toolCallId: string; toolName: string; result: string };
+
+export interface GenerateWithToolsParams {
+  tier: AITaskTier;
+  system: string;
+  messages: AIAgentMessage[];
+  tools: AIToolDefinition[];
+  maxTokens?: number;
+}
+
+export interface GenerateWithToolsResult {
+  text: string;
+  toolCalls: AIToolCall[];
+  providerState?: unknown;
+}
+
 export interface AIProvider {
   readonly name: AIProviderName;
   /** Structured output validado — nunca texto livre parseado à mão (spec §22/§58). */
   generateObject<T>(params: GenerateObjectParams<T>): Promise<T>;
   /** Streaming de texto para a AI Chat (spec §25, §34). */
   streamText(params: StreamTextParams): AsyncGenerator<string, void, void>;
+  /**
+   * Um passo do agente (spec §17): devolve texto e/ou pedidos de tool call.
+   * O provider NÃO executa nada — quem corre o ciclo, valida e decide é
+   * `src/lib/ai/agent.ts` (pipeline LLM → schema → regras → permissões →
+   * execução, spec §59).
+   */
+  generateWithTools(params: GenerateWithToolsParams): Promise<GenerateWithToolsResult>;
+}
+
+/** `$schema` é ruído para as duas APIs de tool calling — nenhuma o usa. */
+function toToolParameters(jsonSchema: Record<string, unknown>): Record<string, unknown> {
+  const { $schema: _ignored, ...rest } = jsonSchema;
+  return rest;
 }
 
 // ── Anthropic ────────────────────────────────────────────────────────────
@@ -134,6 +195,74 @@ class AnthropicProvider implements AIProvider {
       throw mapAnthropicError(error);
     }
   }
+
+  async generateWithTools({ tier, system, messages, tools, maxTokens = 4096 }: GenerateWithToolsParams): Promise<GenerateWithToolsResult> {
+    try {
+      const response = await this.client.messages.create({
+        model: resolveModel(this.name, tier),
+        max_tokens: maxTokens,
+        system,
+        tools: tools.map((t) => ({
+          name: t.name,
+          description: t.description,
+          input_schema: toToolParameters(t.parameters) as Anthropic.Tool.InputSchema,
+        })),
+        messages: toAnthropicMessages(messages),
+      });
+
+      const text = response.content
+        .filter((block): block is Anthropic.TextBlock => block.type === "text")
+        .map((block) => block.text)
+        .join("");
+
+      const toolCalls = response.content
+        .filter((block): block is Anthropic.ToolUseBlock => block.type === "tool_use")
+        .map((block) => ({
+          id: block.id,
+          name: block.name,
+          args: block.input,
+        }));
+
+      return { text, toolCalls, providerState: response.content };
+    } catch (error) {
+      throw mapAnthropicError(error);
+    }
+  }
+}
+
+/**
+ * Converte a conversa agnóstica em mensagens da Anthropic. Resultados de
+ * ferramentas consecutivos têm de ir todos no MESMO turno `user` — separá-los
+ * ensina o modelo a deixar de fazer chamadas em paralelo.
+ */
+function toAnthropicMessages(messages: AIAgentMessage[]): Anthropic.MessageParam[] {
+  const out: Anthropic.MessageParam[] = [];
+
+  for (const message of messages) {
+    if (message.role === "user") {
+      out.push({ role: "user", content: message.content });
+      continue;
+    }
+    if (message.role === "assistant") {
+      const content = (message.providerState ?? message.content) as Anthropic.MessageParam["content"];
+      out.push({ role: "assistant", content });
+      continue;
+    }
+
+    const block: Anthropic.ToolResultBlockParam = {
+      type: "tool_result",
+      tool_use_id: message.toolCallId,
+      content: message.result,
+    };
+    const last = out[out.length - 1];
+    if (last?.role === "user" && Array.isArray(last.content)) {
+      last.content.push(block);
+    } else {
+      out.push({ role: "user", content: [block] });
+    }
+  }
+
+  return out;
 }
 
 // ── Google (Gemini) ─────────────────────────────────────────────────────
@@ -146,7 +275,11 @@ class AnthropicProvider implements AIProvider {
  * status HTTP 400 (não 401/403) e `reason: "API_KEY_INVALID"` lá dentro —
  * por isso nunca basta olhar para `status` sozinho.
  */
-function parseGoogleErrorBody(message: string): { status?: string; reason?: string; quotaId?: string } {
+function parseGoogleErrorBody(message: string): {
+  status?: string;
+  reason?: string;
+  quotaId?: string;
+} {
   try {
     const parsed = JSON.parse(message) as {
       error?: {
@@ -209,19 +342,67 @@ function mapGoogleError(error: unknown): AIError {
 
 function toGoogleContents(messages: AIChatMessage[]): { role: "user" | "model"; parts: { text: string }[] }[] {
   // Gemini usa "model" onde a nossa interface (e a Anthropic) usa "assistant".
-  return messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] }));
+  return messages.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
 }
 
 /**
- * `thinkingConfig` só é aceite pelos modelos "flash" completos — confirmado
- * empiricamente que `gemini-3.5-flash-lite` devolve 400 INVALID_ARGUMENT
- * só por o campo estar presente (mesmo com `thinkingBudget: 0`), enquanto
- * `gemini-3.5-flash` aceita-o normalmente. Detetar pelo nome do modelo em
- * vez de pela tier evita reintroduzir este 400 silenciosamente se o
- * routing mudar no futuro.
+ * Nem todos os modelos Gemini aceitam `thinkingConfig`: alguns devolvem 400
+ * INVALID_ARGUMENT só por o campo estar presente, mesmo com
+ * `thinkingBudget: 0`. Confirmado empiricamente que `gemini-3.5-flash`
+ * aceita, e que `gemini-3.5-flash-lite` e `gemini-3.6-flash` recusam.
+ *
+ * A primeira versão disto adivinhava pelo nome ("tem 'lite' no nome, não
+ * suporta") e partiu-se assim que o fallback trouxe o 3.6-flash. Agora não
+ * se adivinha: a lista abaixo é só uma semente do que já se sabe, e
+ * qualquer modelo que recuse passa a ser marcado em runtime na primeira
+ * tentativa (ver `callWithThinkingFallback`).
  */
+const modelsWithoutThinkingConfig = new Set<string>(["gemini-3.5-flash-lite", "gemini-3.6-flash"]);
+
 function thinkingConfigFor(model: string): { thinkingConfig: { thinkingBudget: number } } | Record<string, never> {
-  return model.includes("lite") ? {} : { thinkingConfig: { thinkingBudget: 0 } };
+  return modelsWithoutThinkingConfig.has(model) ? {} : { thinkingConfig: { thinkingBudget: 0 } };
+}
+
+/**
+ * Margem de tokens para o "thinking" nos modelos onde ele não se consegue
+ * desligar. O `thoughtsTokenCount` conta para o `maxOutputTokens`, por isso
+ * um orçamento pensado só para a resposta visível é gasto a pensar e a
+ * resposta sai truncada — observámos 864 tokens de raciocínio a comerem um
+ * orçamento de 900 e a devolverem JSON cortado a meio (que depois falhava a
+ * validação com um erro que não explicava nada disto).
+ */
+const THINKING_HEADROOM_TOKENS = 3072;
+
+function outputTokenBudget(model: string, maxTokens: number): number {
+  return modelsWithoutThinkingConfig.has(model) ? maxTokens + THINKING_HEADROOM_TOKENS : maxTokens;
+}
+
+/** Spec §35 — uma resposta cortada nunca pode passar por resposta válida. */
+function assertNotTruncated(finishReason: string | undefined): void {
+  if (finishReason !== "MAX_TOKENS") return;
+  throw new AIError("A resposta do modelo foi cortada por atingir o limite de tokens.", {
+    userMessage: "A resposta da IA ficou incompleta. Tente novamente.",
+  });
+}
+
+/**
+ * Corre um pedido e, se o modelo recusar o `thinkingConfig` com 400, repete
+ * uma vez sem ele e memoriza para as próximas chamadas.
+ */
+async function callWithThinkingFallback<T>(model: string, run: () => Promise<T>): Promise<T> {
+  const sentThinkingConfig = !modelsWithoutThinkingConfig.has(model);
+  try {
+    return await run();
+  } catch (error) {
+    const rejected = sentThinkingConfig && error instanceof GoogleApiError && error.status === 400;
+    if (!rejected) throw error;
+    modelsWithoutThinkingConfig.add(model);
+    console.warn(`[ai] ${model} recusou "thinkingConfig" (400); a repetir sem essa opção.`);
+    return run();
+  }
 }
 
 /**
@@ -235,6 +416,31 @@ function thinkingConfigFor(model: string): { thinkingConfig: { thinkingBudget: n
  * tentativas extra e backoff curto — nunca queremos mascarar uma falha
  * persistente atrás de retries longos.
  */
+/** 429 por quota DIÁRIA (só passa amanhã), distinto de um 429 por minuto. */
+function isDailyQuotaError(error: unknown): boolean {
+  if (!(error instanceof GoogleApiError) || error.status !== 429) return false;
+  return parseGoogleErrorBody(error.message).quotaId?.includes("PerDay") ?? false;
+}
+
+/**
+ * Percorre a cadeia de modelos do tier: se um esgotou a quota diária,
+ * tenta o seguinte em vez de deixar a app sem IA até ao dia seguinte
+ * (ver `GOOGLE_MODEL_CHAINS`). Qualquer outro erro sobe logo.
+ */
+async function withModelFallback<T>(chain: string[], run: (model: string) => Promise<T>): Promise<T> {
+  let lastError: unknown;
+  for (const model of chain) {
+    try {
+      return await withGoogleRetry(() => run(model));
+    } catch (error) {
+      lastError = error;
+      if (!isDailyQuotaError(error)) throw error;
+      console.warn(`[ai] quota diária gratuita esgotada em ${model}; a tentar o modelo seguinte da cadeia.`);
+    }
+  }
+  throw lastError;
+}
+
 async function withGoogleRetry<T>(run: () => Promise<T>): Promise<T> {
   const maxAttempts = 3;
   let lastError: unknown;
@@ -261,29 +467,28 @@ class GoogleProvider implements AIProvider {
 
   async generateObject<T>({ tier, system, messages, schema, maxTokens = 4096 }: GenerateObjectParams<T>): Promise<T> {
     try {
-      const model = resolveModel(this.name, tier);
-      const response = await withGoogleRetry(() =>
-        this.client.models.generateContent({
-          model,
-          contents: toGoogleContents(messages),
-          config: {
-            systemInstruction: system,
-            responseMimeType: "application/json",
-            // JSON Schema puro (gerado do schema Zod original) — o SDK
-            // aceita-o diretamente em `responseJsonSchema` desde a v1.9.0.
-            responseJsonSchema: z.toJSONSchema(schema),
-            maxOutputTokens: maxTokens,
-            // Thinking desligado onde suportado (spec §51 — sem raciocínio
-            // complexo nesta fase, controlar token budget). Confirmado
-            // empiricamente que os modelos Gemini 3.x "flash" pensam por
-            // default e consomem `maxOutputTokens` a fazê-lo (chegámos a
-            // ver 613 tokens de "thinking" para 84 de resposta) — sem
-            // isto, uma resposta podia ficar cortada a meio sem erro
-            // nenhum. Ver `thinkingConfigFor` para o porquê do "lite".
-            ...thinkingConfigFor(model),
-          },
-        }),
+      const response = await withModelFallback(resolveModelChain(this.name, tier), (model) =>
+        callWithThinkingFallback(model, () =>
+          this.client.models.generateContent({
+            model,
+            contents: toGoogleContents(messages),
+            config: {
+              systemInstruction: system,
+              responseMimeType: "application/json",
+              // JSON Schema puro (gerado do schema Zod original) — o SDK
+              // aceita-o diretamente em `responseJsonSchema` desde a v1.9.0.
+              responseJsonSchema: z.toJSONSchema(schema),
+              // Thinking desligado onde suportado (spec §51 — sem raciocínio
+              // complexo nesta fase, controlar token budget); onde não é
+              // suportado, dá-se margem para ele não comer a resposta.
+              maxOutputTokens: outputTokenBudget(model, maxTokens),
+              ...thinkingConfigFor(model),
+            },
+          }),
+        ),
       );
+
+      assertNotTruncated(response.candidates?.[0]?.finishReason);
 
       const text = response.text;
       if (!text) {
@@ -322,13 +527,18 @@ class GoogleProvider implements AIProvider {
       // O retry só cobre o estabelecimento do stream (o pedido inicial);
       // uma falha a meio da iteração já não é seguro reenviar (podíamos
       // duplicar texto já entregue ao utilizador).
-      const model = resolveModel(this.name, tier);
-      const stream = await withGoogleRetry(() =>
-        this.client.models.generateContentStream({
-          model,
-          contents: toGoogleContents(messages),
-          config: { systemInstruction: system, maxOutputTokens: maxTokens, ...thinkingConfigFor(model) },
-        }),
+      const stream = await withModelFallback(resolveModelChain(this.name, tier), (model) =>
+        callWithThinkingFallback(model, () =>
+          this.client.models.generateContentStream({
+            model,
+            contents: toGoogleContents(messages),
+            config: {
+              systemInstruction: system,
+              maxOutputTokens: outputTokenBudget(model, maxTokens),
+              ...thinkingConfigFor(model),
+            },
+          }),
+        ),
       );
       let finishReason: string | undefined;
       for await (const chunk of stream) {
@@ -344,6 +554,94 @@ class GoogleProvider implements AIProvider {
       throw mapGoogleError(error);
     }
   }
+
+  async generateWithTools({ tier, system, messages, tools, maxTokens = 4096 }: GenerateWithToolsParams): Promise<GenerateWithToolsResult> {
+    try {
+      const response = await withModelFallback(resolveModelChain(this.name, tier), (model) =>
+        callWithThinkingFallback(model, () =>
+          this.client.models.generateContent({
+            model,
+            contents: toGoogleAgentContents(messages),
+            config: {
+              systemInstruction: system,
+              tools: [
+                {
+                  functionDeclarations: tools.map((t) => ({
+                    name: t.name,
+                    description: t.description,
+                    parametersJsonSchema: toToolParameters(t.parameters),
+                  })),
+                },
+              ],
+              maxOutputTokens: outputTokenBudget(model, maxTokens),
+              ...thinkingConfigFor(model),
+            },
+          }),
+        ),
+      );
+
+      const parts = response.candidates?.[0]?.content?.parts ?? [];
+      // Ler o texto das `parts` em vez do getter `response.text`: com partes
+      // de `functionCall` presentes, o getter devolve `undefined` e escreve
+      // um aviso na consola a cada chamada.
+      const text = parts
+        .map((part) => part.text)
+        .filter((value): value is string => typeof value === "string")
+        .join("");
+
+      const toolCalls = (response.functionCalls ?? []).map((call, index) => ({
+        // O `id` é opcional na resposta do Gemini; o índice do passo serve de
+        // fallback estável para emparelhar com o `functionResponse`.
+        id: call.id ?? `${call.name ?? "tool"}_${index}`,
+        name: call.name ?? "",
+        args: call.args,
+      }));
+
+      return { text, toolCalls, providerState: parts };
+    } catch (error) {
+      throw mapGoogleError(error);
+    }
+  }
+}
+
+/**
+ * Converte a conversa agnóstica em `contents` do Gemini. Duas diferenças em
+ * relação ao formato da Anthropic: o papel do assistente chama-se "model", e
+ * o resultado de uma ferramenta vai num turno "user" como `functionResponse`
+ * (resultados consecutivos são agrupados no mesmo turno).
+ */
+function toGoogleAgentContents(messages: AIAgentMessage[]): { role: "user" | "model"; parts: Record<string, unknown>[] }[] {
+  const out: { role: "user" | "model"; parts: Record<string, unknown>[] }[] = [];
+
+  for (const message of messages) {
+    if (message.role === "user") {
+      out.push({ role: "user", parts: [{ text: message.content }] });
+      continue;
+    }
+    if (message.role === "assistant") {
+      // As `parts` originais trazem o `thoughtSignature` que o Gemini exige
+      // de volta; só se não existirem é que reconstruímos a partir do texto.
+      const parts = Array.isArray(message.providerState) ? (message.providerState as Record<string, unknown>[]) : [{ text: message.content }];
+      out.push({ role: "model", parts });
+      continue;
+    }
+
+    const part = {
+      functionResponse: {
+        id: message.toolCallId,
+        name: message.toolName,
+        response: { output: message.result },
+      },
+    };
+    const last = out[out.length - 1];
+    if (last?.role === "user" && last.parts.every((p) => "functionResponse" in p)) {
+      last.parts.push(part);
+    } else {
+      out.push({ role: "user", parts: [part] });
+    }
+  }
+
+  return out;
 }
 
 // ── Resolução do provider ativo ─────────────────────────────────────────

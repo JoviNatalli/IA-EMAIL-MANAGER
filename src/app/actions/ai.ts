@@ -37,6 +37,7 @@ import {
   type ReplyTone,
 } from "@/lib/ai/schemas";
 import { resolveModel } from "@/lib/ai/models";
+import { collectBriefingData, generateBriefingText } from "@/lib/ai/briefing";
 
 function aiUserMessage(error: unknown, fallback: string): string {
   if (error instanceof AIError) return error.userMessage;
@@ -262,5 +263,17 @@ export async function generateEmailDraft(instruction: string): Promise<{ subject
   } catch (error) {
     if (error instanceof AIProviderNotConfiguredError) throw new Error(error.userMessage);
     throw new Error(aiUserMessage(error, "Não foi possível gerar o email com IA. Tente novamente."));
+  }
+}
+
+/** Daily AI Briefing (spec §19) — uma chamada, por cima de contagens reais. */
+export async function generateDailyBriefing() {
+  const userId = await requireUserId();
+  const data = await collectBriefingData(userId);
+  try {
+    return await generateBriefingText(data);
+  } catch (error) {
+    if (error instanceof AIProviderNotConfiguredError) throw new Error(error.userMessage);
+    throw new Error(aiUserMessage(error, "Não foi possível gerar o resumo diário. Tente novamente."));
   }
 }

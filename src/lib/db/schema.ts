@@ -109,6 +109,18 @@ export const aiSentimentEnum = pgEnum("ai_sentiment", [
   "negative",
 ]);
 
+// Fase 5 — estado de uma ação confirmável proposta pelo agente (spec §18).
+// Uma ação sensível NUNCA executa direto: fica aqui em "pending" com os
+// argumentos já validados no servidor, e só passa a "executed" depois de o
+// utilizador confirmar explicitamente (o cliente só envia o id, nunca os
+// argumentos — ver `src/app/actions/agent.ts`).
+export const aiActionStatusEnum = pgEnum("ai_action_status", [
+  "pending",
+  "executed",
+  "rejected",
+  "failed",
+]);
+
 // ── Users & Auth (compatível com o Drizzle Adapter do Auth.js) ────────────
 
 export const users = pgTable("user", {
@@ -361,6 +373,111 @@ export const aiAnalysis = pgTable("ai_analysis", {
 
 export const aiAnalysisRelations = relations(aiAnalysis, ({ one }) => ({
   thread: one(threads, { fields: [aiAnalysis.threadId], references: [threads.id] }),
+}));
+
+// ── Tarefas, lembretes e calendário (Fase 5) ─────────────────────────────
+
+// Spec §20 — tarefas extraídas de emails só entram aqui depois de um clique
+// explícito do utilizador ([Create task]) ou de um pedido direto ao agente;
+// a extração por si só nunca escreve nada.
+export const tasks = pgTable(
+  "task",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    notes: text("notes"),
+    dueDate: timestamp("due_date", { mode: "date" }),
+    // Email de origem, quando a tarefa nasceu de uma thread. `set null`
+    // porque a tarefa continua a fazer sentido se a conversa for apagada.
+    sourceThreadId: uuid("source_thread_id").references(() => threads.id, { onDelete: "set null" }),
+    isDone: boolean("is_done").notNull().default(false),
+    completedAt: timestamp("completed_at", { mode: "date" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("task_user_idx").on(t.userId, t.isDone, t.dueDate)],
+);
+
+export const reminders = pgTable(
+  "reminder",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    remindAt: timestamp("remind_at", { mode: "date" }).notNull(),
+    sourceThreadId: uuid("source_thread_id").references(() => threads.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("reminder_user_idx").on(t.userId, t.remindAt)],
+);
+
+// Spec §21 — "Calendar Intelligence". Guardado localmente; a arquitetura
+// fica pronta para sincronizar com o Google Calendar depois (o evento tem
+// tudo o que a API deles precisa), mas essa integração não está feita.
+export const calendarEvents = pgTable(
+  "calendar_event",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    title: text("title").notNull(),
+    startsAt: timestamp("starts_at", { mode: "date" }).notNull(),
+    endsAt: timestamp("ends_at", { mode: "date" }),
+    location: text("location"),
+    sourceThreadId: uuid("source_thread_id").references(() => threads.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("calendar_event_user_idx").on(t.userId, t.startsAt)],
+);
+
+// Spec §18 — ação sensível proposta pelo agente, à espera de confirmação
+// explícita. Os argumentos ficam no SERVIDOR (já validados) para que a
+// confirmação do cliente seja só um id: nunca reaceitamos argumentos vindos
+// do cliente nem do LLM na altura de executar (spec §29/§30/§59).
+export const aiPendingActions = pgTable(
+  "ai_pending_action",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    toolName: text("tool_name").notNull(),
+    args: jsonb("args").$type<Record<string, unknown>>().notNull(),
+    /** Descrição em PT-PT do que vai acontecer, mostrada ao utilizador. */
+    summary: text("summary").notNull(),
+    /** Quantos itens são afetados — obrigatório mostrar antes (spec §18). */
+    affectedCount: integer("affected_count").notNull(),
+    status: aiActionStatusEnum("status").notNull().default("pending"),
+    resultMessage: text("result_message"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { mode: "date" }).notNull(),
+    resolvedAt: timestamp("resolved_at", { mode: "date" }),
+  },
+  (t) => [index("ai_pending_action_user_idx").on(t.userId, t.status)],
+);
+
+export const tasksRelations = relations(tasks, ({ one }) => ({
+  user: one(users, { fields: [tasks.userId], references: [users.id] }),
+  sourceThread: one(threads, { fields: [tasks.sourceThreadId], references: [threads.id] }),
+}));
+
+export const remindersRelations = relations(reminders, ({ one }) => ({
+  user: one(users, { fields: [reminders.userId], references: [users.id] }),
+  sourceThread: one(threads, { fields: [reminders.sourceThreadId], references: [threads.id] }),
+}));
+
+export const calendarEventsRelations = relations(calendarEvents, ({ one }) => ({
+  user: one(users, { fields: [calendarEvents.userId], references: [users.id] }),
+  sourceThread: one(threads, { fields: [calendarEvents.sourceThreadId], references: [threads.id] }),
+}));
+
+export const aiPendingActionsRelations = relations(aiPendingActions, ({ one }) => ({
+  user: one(users, { fields: [aiPendingActions.userId], references: [users.id] }),
 }));
 
 // ── Relations ────────────────────────────────────────────────────────────

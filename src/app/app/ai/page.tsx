@@ -1,5 +1,5 @@
-import { AiChatPanel } from "@/components/ai/ai-chat-panel";
+import { AgentChatPanel } from "@/components/ai/agent-chat-panel";
 
 export default function AiAssistantPage() {
-  return <AiChatPanel />;
+  return <AgentChatPanel />;
 }

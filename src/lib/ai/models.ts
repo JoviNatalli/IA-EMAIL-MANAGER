@@ -12,18 +12,21 @@
  */
 import type { AIProviderName } from "./provider";
 
-export type AITaskTier = "classify" | "summarize" | "compose" | "chat";
+export type AITaskTier = "classify" | "summarize" | "compose" | "chat" | "agent";
 
 const ANTHROPIC_MODELS: Record<AITaskTier, string> = {
   // Categorização/prioridade: schema pequeno, chamado com frequência
   // (potencialmente a cada thread aberta) — modelo mais barato compensa.
   classify: "claude-haiku-4-5",
   // Resumo, geração de resposta e AI chat: precisam de melhor compreensão de
-  // contexto/tom; ainda não é "raciocínio complexo" (isso fica para o AI
-  // Agent da Fase 5, que poderá subir para um modelo mais avançado).
+  // contexto/tom, mas não são raciocínio complexo.
   summarize: "claude-sonnet-5",
   compose: "claude-sonnet-5",
   chat: "claude-sonnet-5",
+  // Fase 5 — AI Agent com tool calling: é o "raciocínio complexo" do
+  // §52 (decidir que ferramenta usar, encadear passos, interpretar
+  // resultados), por isso sobe para o modelo avançado.
+  agent: "claude-opus-5",
 };
 
 /**
@@ -47,13 +50,33 @@ const ANTHROPIC_MODELS: Record<AITaskTier, string> = {
  * chat; "flash-lite" (mais rápido/barato) faz de "modelo pequeno" para
  * classificação.
  */
-const GOOGLE_MODELS: Record<AITaskTier, string> = {
-  classify: "gemini-3.5-flash-lite",
-  summarize: "gemini-3.5-flash",
-  compose: "gemini-3.5-flash",
-  chat: "gemini-3.5-flash",
+/**
+ * Cada tier tem uma CADEIA de modelos, não um só: a quota gratuita do
+ * Gemini é por modelo e por dia, e uma tarde de desenvolvimento da Fase 5
+ * esgotou a do `gemini-3.5-flash` (ver docs/status.md). Quando isso
+ * acontece, o provider passa automaticamente ao modelo seguinte da cadeia
+ * em vez de a app ficar sem IA até ao dia seguinte. O primeiro da lista é
+ * sempre o preferido.
+ *
+ * Só modelos da família "flash" (nunca "pro") — os "pro" não têm tier
+ * gratuito garantido e o objetivo explícito é custo zero. Para o agente
+ * (§52 pede "modelo avançado" para raciocínio complexo) assume-se a
+ * limitação: um "flash" é mais frágil em raciocínio multi-passo.
+ */
+const GOOGLE_MODEL_CHAINS: Record<AITaskTier, string[]> = {
+  classify: ["gemini-3.5-flash-lite", "gemini-3.6-flash"],
+  summarize: ["gemini-3.5-flash", "gemini-3.6-flash"],
+  compose: ["gemini-3.5-flash", "gemini-3.6-flash"],
+  chat: ["gemini-3.5-flash", "gemini-3.6-flash"],
+  agent: ["gemini-3.5-flash", "gemini-3.6-flash"],
 };
 
+/** Modelo preferido do tier (é este que fica registado nas análises guardadas). */
 export function resolveModel(provider: AIProviderName, tier: AITaskTier): string {
-  return provider === "google" ? GOOGLE_MODELS[tier] : ANTHROPIC_MODELS[tier];
+  return resolveModelChain(provider, tier)[0];
+}
+
+/** Cadeia completa: o provider percorre-a quando um modelo esgota a quota diária. */
+export function resolveModelChain(provider: AIProviderName, tier: AITaskTier): string[] {
+  return provider === "google" ? GOOGLE_MODEL_CHAINS[tier] : [ANTHROPIC_MODELS[tier]];
 }

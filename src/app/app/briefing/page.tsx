@@ -1,13 +1,13 @@
-import { Sparkles } from "lucide-react";
+import { redirect } from "next/navigation";
 
-import { EmptyState } from "@/components/shared/empty-state";
+import { auth } from "@/auth";
+import { BriefingView } from "@/components/dashboard/briefing-view";
+import { collectBriefingData } from "@/lib/ai/briefing";
 
-export default function BriefingPage() {
-  return (
-    <EmptyState
-      icon={Sparkles}
-      title="O seu resumo diário aparece aqui."
-      description="O Daily AI Briefing (spec §19) é gerado a partir de dados reais de inbox — chega na Fase 4, depois da categorização e prioridade estarem prontas."
-    />
-  );
+export default async function BriefingPage() {
+  const session = await auth();
+  if (!session?.user?.id) redirect("/login");
+
+  const data = await collectBriefingData(session.user.id);
+  return <BriefingView data={data} />;
 }

@@ -24,6 +24,17 @@ export interface ThreadMessageInput {
 const MAX_MESSAGES_IN_CONTEXT = 8;
 const MAX_CHARS_PER_MESSAGE = 2000;
 
+/**
+ * Impede que conteúdo não confiável feche os nossos delimitadores.
+ *
+ * Sem isto, um email com `</EMAIL_CONTENT>` no corpo conseguia "sair" do
+ * bloco de dados e escrever texto que o modelo lê como se viesse de fora —
+ * o equivalente a um SQL injection para prompts (spec §31).
+ */
+export function neutralizeDelimiters(text: string): string {
+  return text.replace(/<(\/?)(EMAIL_CONTENT|TOOL_RESULTS|TEXT_TO_EDIT|SYSTEM_INSTRUCTIONS)>/gi, "[$1$2]");
+}
+
 /** Serializa uma thread como bloco `<EMAIL_CONTENT>` delimitado e truncado (custo — spec §51). */
 export function formatThreadAsEmailContent(subject: string, messages: ThreadMessageInput[]): string {
   const recent = messages.slice(-MAX_MESSAGES_IN_CONTEXT);
@@ -31,14 +42,15 @@ export function formatThreadAsEmailContent(subject: string, messages: ThreadMess
 
   const body = recent
     .map((m, i) => {
-      const text = m.bodyText.trim().slice(0, MAX_CHARS_PER_MESSAGE);
+      const text = neutralizeDelimiters(m.bodyText.trim().slice(0, MAX_CHARS_PER_MESSAGE));
       const truncated = m.bodyText.trim().length > MAX_CHARS_PER_MESSAGE ? " [...texto truncado...]" : "";
       const date = m.sentAt ? m.sentAt.toISOString() : "(rascunho)";
-      return `[Mensagem ${i + 1} — de ${m.fromName ?? m.fromEmail} <${m.fromEmail}> em ${date}]\n${text || "(sem conteúdo)"}${truncated}`;
+      const from = neutralizeDelimiters(m.fromName ?? m.fromEmail);
+      return `[Mensagem ${i + 1} — de ${from} <${m.fromEmail}> em ${date}]\n${text || "(sem conteúdo)"}${truncated}`;
     })
     .join("\n\n");
 
-  return `<EMAIL_CONTENT>\nAssunto: ${subject}${truncatedNote}\n\n${body}\n</EMAIL_CONTENT>`;
+  return `<EMAIL_CONTENT>\nAssunto: ${neutralizeDelimiters(subject)}${truncatedNote}\n\n${body}\n</EMAIL_CONTENT>`;
 }
 
 function system(instructions: string): string {
@@ -130,7 +142,12 @@ export function buildComposeActionPrompt(
     system: system(
       `És um assistente de escrita dentro do compose de email do Nuvoly (spec §41/§42). ${instruction} ${languageNote} Responde APENAS com o texto resultante, sem comentários, sem aspas à volta, sem explicações.`,
     ),
-    messages: [{ role: "user", content: `USER INSTRUCTIONS:\nAplica a ação ao texto abaixo.\n\n<TEXT_TO_EDIT>\n${text}\n</TEXT_TO_EDIT>` }],
+    messages: [
+      {
+        role: "user",
+        content: `USER INSTRUCTIONS:\nAplica a ação ao texto abaixo.\n\n<TEXT_TO_EDIT>\n${neutralizeDelimiters(text)}\n</TEXT_TO_EDIT>`,
+      },
+    ],
   };
 }
 
@@ -143,16 +160,128 @@ export function buildComposeDraftPrompt(instruction: string, userName: string | 
   };
 }
 
-export interface ChatAppContext {
-  unreadCount: number;
-  importantCount: number;
-  starredCount: number;
-  draftsCount: number;
+// ── Fase 5 — AI Agent (spec §16-21) ─────────────────────────────────────
+
+/**
+ * Envolve o resultado de uma ferramenta como dados NÃO confiáveis. Um
+ * resultado pode conter o corpo de um email (searchEmails, getThread, ...) —
+ * ou seja, texto escrito por terceiros a chegar ao modelo no meio do ciclo
+ * do agente. É exatamente o vetor de prompt injection do §31 e por isso vai
+ * delimitado e com os delimitadores internos neutralizados.
+ */
+export function wrapToolResult(toolName: string, result: string): string {
+  return `<TOOL_RESULTS tool="${toolName}">\n${neutralizeDelimiters(result)}\n</TOOL_RESULTS>`;
 }
 
-/** AI Chat lateral (spec §25–26) — ainda sem tool calling (Fase 5): só aconselha. */
-export function buildChatSystemPrompt(context: ChatAppContext): string {
+export interface AgentSystemContext {
+  userName: string | null;
+  userEmail: string;
+  /** Data/hora do servidor — o modelo não pode inventar "hoje". */
+  now: Date;
+  unreadCount: number;
+  importantCount: number;
+  draftsCount: number;
+  labelNames: string[];
+}
+
+/** System prompt do agente com tool calling (spec §16-18). */
+export function buildAgentSystemPrompt(context: AgentSystemContext): string {
   return system(
-    `És o copiloto de IA do Nuvoly, um gestor de inbox com IA. Ajudas o utilizador a perceber e priorizar a inbox, sugerindo o que responder primeiro e como organizar o dia. Contexto atual da aplicação (dados reais, não invented): ${context.unreadCount} emails por ler, ${context.importantCount} marcados como importantes, ${context.starredCount} com estrela, ${context.draftsCount} rascunhos por enviar. IMPORTANTE: ainda não consegues executar ações (enviar, arquivar, criar tarefas, etc.) — isso chega numa fase seguinte do produto. Se o utilizador pedir para fazeres algo em vez de aconselhar, explica claramente essa limitação em vez de fingir que executaste algo. Responde em português de Portugal, de forma direta e concisa, em texto simples (a UI não renderiza markdown — nunca uses **negrito**, _itálico_, ou listas com "-"/"*").`,
+    [
+      `És o copiloto de IA do Nuvoly, um gestor de inbox com IA, a trabalhar em nome de ${context.userName ?? context.userEmail} (${context.userEmail}).`,
+      `Data e hora atuais no servidor: ${context.now.toISOString()}. Usa sempre isto para resolver referências como "hoje", "amanhã" ou "sexta" — nunca assumas outra data.`,
+      `Estado da inbox: ${context.unreadCount} por ler, ${context.importantCount} importantes, ${context.draftsCount} rascunhos. Labels existentes: ${context.labelNames.join(", ") || "(nenhuma)"}.`,
+      "",
+      "Como trabalhas:",
+      "- Tens ferramentas para pesquisar, ler e agir sobre os emails do utilizador. Usa-as em vez de adivinhar: nunca inventes assuntos, remetentes, datas ou ids.",
+      "- Os ids de conversa vêm SEMPRE de um resultado de ferramenta. Nunca inventes um id nem reutilizes um id de outra conversa.",
+      "- Antes de agir sobre um conjunto de emails, pesquisa primeiro para saberes exatamente quais são e quantos são.",
+      "- Ações sensíveis (enviar email, responder, arquivar/marcar/etiquetar em massa) são confirmadas pelo utilizador antes de acontecerem. Não prometas que já executaste: a aplicação mostra a confirmação e executa só depois do clique.",
+      "- Se uma ferramenta devolver erro, explica ao utilizador o que falhou em vez de tentar contornar.",
+      "- Se o pedido for ambíguo ou perigoso (ex.: 'apaga tudo'), pede esclarecimento em vez de escolher por ele.",
+      "",
+      "Responde sempre em português de Portugal, direto e conciso, em texto simples (a UI não renderiza markdown — nada de **negrito**, _itálico_ ou listas com '-'/'*').",
+    ].join("\n"),
   );
+}
+
+/** Task Extraction (spec §20). */
+export function buildTaskExtractionPrompt(
+  subject: string,
+  messages: ThreadMessageInput[],
+  now: Date,
+): { system: string; messages: AIChatMessage[] } {
+  return {
+    system: system(
+      `Extrais tarefas acionáveis de conversas de email. Data atual: ${now.toISOString()} — usa-a para resolver prazos relativos ("até sexta", "amanhã") e devolve datas em ISO 8601. REGRAS: só extrai o que está explicitamente pedido ou prometido no email; se não houver nenhuma tarefa clara, devolve a lista vazia; se não houver prazo explícito, "dueDate" é null (nunca inventes uma data). O título é curto e imperativo, em português de Portugal.`,
+    ),
+    messages: [
+      {
+        role: "user",
+        content: `USER INSTRUCTIONS:\nExtrai as tarefas desta conversa.\n\n${formatThreadAsEmailContent(subject, messages)}`,
+      },
+    ],
+  };
+}
+
+/** Calendar Intelligence (spec §21). */
+export function buildMeetingExtractionPrompt(
+  subject: string,
+  messages: ThreadMessageInput[],
+  now: Date,
+): { system: string; messages: AIChatMessage[] } {
+  return {
+    system: system(
+      `Detetas reuniões/eventos mencionados em conversas de email. Data atual: ${now.toISOString()} — usa-a para resolver datas relativas e devolve "startsAt"/"endsAt" em ISO 8601. REGRAS: só devolves um evento se houver data (ou dia da semana) E hora identificáveis no email; se faltar essa informação, devolve a lista vazia em vez de inventar um horário. "location" é null se não for mencionado. Títulos em português de Portugal.`,
+    ),
+    messages: [
+      {
+        role: "user",
+        content: `USER INSTRUCTIONS:\nDeteta reuniões nesta conversa.\n\n${formatThreadAsEmailContent(subject, messages)}`,
+      },
+    ],
+  };
+}
+
+export interface BriefingContext {
+  now: Date;
+  unreadCount: number;
+  importantCount: number;
+  needsReplyCount: number;
+  draftsCount: number;
+  openTaskCount: number;
+  upcomingEventCount: number;
+  /** Linhas já resumidas no servidor, a partir de dados reais. */
+  highlights: string[];
+}
+
+/** Daily AI Briefing (spec §19) — texto por cima de contagens calculadas no servidor. */
+export function buildBriefingPrompt(context: BriefingContext): { system: string; messages: AIChatMessage[] } {
+  return {
+    system: system(
+      "Escreves o resumo diário da inbox de um utilizador do Nuvoly, em português de Portugal. Recebes números e destaques JÁ CALCULADOS pela aplicação: usa só esses dados, nunca inventes contagens, remetentes ou prazos que não estejam na lista. Se os dados forem escassos, diz que o dia está calmo em vez de encher. Texto simples, sem markdown.",
+    ),
+    messages: [
+      {
+        role: "user",
+        content: [
+          "USER INSTRUCTIONS:",
+          "Escreve o briefing de hoje a partir destes dados reais.",
+          "",
+          `Data: ${context.now.toISOString()}`,
+          `Por ler: ${context.unreadCount}`,
+          `Importantes: ${context.importantCount}`,
+          `A precisar de resposta (segundo a análise de IA já feita): ${context.needsReplyCount}`,
+          `Rascunhos por enviar: ${context.draftsCount}`,
+          `Tarefas por fazer: ${context.openTaskCount}`,
+          `Eventos próximos: ${context.upcomingEventCount}`,
+          "",
+          "Destaques:",
+          ...(context.highlights.length > 0
+            ? context.highlights.map((h) => `- ${neutralizeDelimiters(h)}`)
+            : ["- (sem destaques)"]),
+        ].join("\n"),
+      },
+    ],
+  };
 }
