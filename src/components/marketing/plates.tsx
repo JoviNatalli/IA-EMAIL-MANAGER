@@ -81,7 +81,7 @@ export function Plates() {
         </div>
 
         <Reveal>
-          <h2 className="misregister headline mt-8 max-w-3xl text-[clamp(2rem,4.5vw,3.75rem)] text-balance text-foreground">
+          <h2 className="headline mt-8 max-w-3xl text-[clamp(2rem,4.5vw,3.75rem)] text-balance text-foreground">
             Quatro momentos em que a caixa deixa de pesar.
           </h2>
         </Reveal>

@@ -59,7 +59,7 @@ export function FrontPage() {
               initial={reduced ? false : { opacity: 0, y: 18 }}
               animate={reduced ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: 0.9, ease: EASE }}
-              className="misregister headline mt-6 text-[clamp(2.75rem,7.5vw,6.5rem)] text-balance text-foreground"
+              className="headline mt-6 text-[clamp(2.75rem,7.5vw,6.5rem)] text-balance text-foreground"
             >
               A sua manhã não devia começar
               <em className="font-normal italic"> a triar correio</em>.

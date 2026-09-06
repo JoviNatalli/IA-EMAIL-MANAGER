@@ -28,7 +28,7 @@ export function Report() {
         </div>
 
         <Reveal>
-          <h2 className="misregister headline mt-8 max-w-4xl text-[clamp(2rem,5vw,4.25rem)] text-balance text-foreground">
+          <h2 className="headline mt-8 max-w-4xl text-[clamp(2rem,5vw,4.25rem)] text-balance text-foreground">
             Ninguém precisa de mais email.
             <em className="font-normal italic"> Precisa de menos decisões.</em>
           </h2>

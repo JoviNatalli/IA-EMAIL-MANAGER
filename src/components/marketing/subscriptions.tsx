@@ -54,7 +54,7 @@ export function Subscriptions() {
 
         <div className="mt-8 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <Reveal>
-            <h2 className="misregister headline max-w-2xl text-[clamp(2rem,4.5vw,3.75rem)] text-balance text-foreground">
+            <h2 className="headline max-w-2xl text-[clamp(2rem,4.5vw,3.75rem)] text-balance text-foreground">
               Tabela de assinaturas.
             </h2>
           </Reveal>

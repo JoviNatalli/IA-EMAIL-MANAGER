@@ -315,20 +315,6 @@
     }
   }
 
-  /*
-   * Erro de registo de impressão: no hover, a manchete ganha uma sombra
-   * ciano/magenta deslocada, como uma tiragem mal alinhada. É o detalhe
-   * táctil que faz a página parecer impressa em vez de renderizada.
-   */
-  .misregister {
-    transition: text-shadow 240ms ease, transform 240ms ease;
-  }
-  .misregister:hover {
-    text-shadow:
-      0.06em 0 0 oklch(0.7 0.16 200 / 0.5),
-      -0.06em 0 0 oklch(0.65 0.2 15 / 0.42);
-  }
-
   /* Faixa de últimas — o fio noticioso. Pausa no hover/foco. */
   .marquee-track {
     animation: marquee 46s linear infinite;

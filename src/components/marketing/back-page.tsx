@@ -28,7 +28,7 @@ export function BackPage() {
           <p className="folio text-muted-foreground">Última página</p>
 
           <Reveal>
-            <h2 className="misregister headline mx-auto mt-6 max-w-4xl text-[clamp(2.5rem,7vw,6rem)] text-balance text-foreground">
+            <h2 className="headline mx-auto mt-6 max-w-4xl text-[clamp(2.5rem,7vw,6rem)] text-balance text-foreground">
               Devolva a manhã a quem a merece.
             </h2>
           </Reveal>

@@ -59,7 +59,7 @@ export function Verification() {
         <div className="mt-8 grid grid-cols-1 gap-10 lg:grid-cols-12">
           <div className="lg:col-span-5">
             <Reveal>
-              <h2 className="misregister headline text-[clamp(2rem,4.5vw,3.75rem)] text-balance text-foreground">
+              <h2 className="headline text-[clamp(2rem,4.5vw,3.75rem)] text-balance text-foreground">
                 O que aqui é real e o que é demonstração.
               </h2>
             </Reveal>

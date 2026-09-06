@@ -35,7 +35,7 @@ export function Editorial() {
 
         <div className="mx-auto max-w-4xl pt-12 text-center">
           <Reveal>
-            <h2 className="misregister headline text-[clamp(2.25rem,5.5vw,4.5rem)] text-balance text-foreground">
+            <h2 className="headline text-[clamp(2.25rem,5.5vw,4.5rem)] text-balance text-foreground">
               Contra o assistente que age sozinho.
             </h2>
           </Reveal>

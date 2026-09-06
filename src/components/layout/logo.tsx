@@ -28,7 +28,7 @@ export function Logo({
       <span
         style={style}
         className={cn(
-          "misregister headline inline-block select-none leading-none text-foreground",
+          "headline inline-block select-none leading-none text-foreground transition-colors duration-300 hover:text-primary",
           size === "lg" ? "text-6xl sm:text-7xl" : "text-2xl",
           className,
         )}
