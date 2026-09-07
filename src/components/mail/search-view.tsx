@@ -54,17 +54,38 @@ export function SearchView({
   const answerKey = `${semantic ? "s" : "k"}:${query}`;
   const answer = answerFor?.key === answerKey ? answerFor.text : "";
 
-  function submit(next: string, nextSemantic = semantic) {
-    const params = new URLSearchParams();
-    if (next.trim()) params.set("q", next.trim());
-    if (nextSemantic) params.set("mode", "semantic");
-    router.push(`/app/search${params.toString() ? `?${params}` : ""}`);
-  }
+  const submit = React.useCallback(
+    (next: string, nextSemantic = semantic) => {
+      const params = new URLSearchParams();
+      if (next.trim()) params.set("q", next.trim());
+      if (nextSemantic) params.set("mode", "semantic");
+      router.push(`/app/search${params.toString() ? `?${params}` : ""}`);
+    },
+    [router, semantic],
+  );
+
+  /**
+   * Debounce só no modo palavras-chave (Fase 7, spec §38).
+   *
+   * A assimetria é deliberada, não esquecimento: uma pesquisa por palavras é
+   * um `ilike` local e pode correr enquanto se escreve; uma pesquisa
+   * semântica gasta uma chamada de embeddings por tecla parada, e no plano
+   * gratuito do Gemini isso esgota quota a escrever uma frase (§51). No modo
+   * "Significado" a pesquisa só corre no Enter — decisão de custo, não de UX.
+   */
+  React.useEffect(() => {
+    if (semantic) return;
+    const trimmed = value.trim();
+    if (trimmed === query.trim()) return;
+
+    const timer = setTimeout(() => submit(value), 350);
+    return () => clearTimeout(timer);
+  }, [value, query, semantic, submit]);
 
   async function askAI() {
     const key = answerKey;
-    const fail = () =>
-      setAnswerFor({ key, text: "Não foi possível responder agora. Tente novamente." });
+    const fail = (message = "Não foi possível responder agora. Tente novamente.") =>
+      setAnswerFor({ key, text: message });
 
     setAnswering(true);
     setAnswerFor(null);
@@ -75,7 +96,10 @@ export function SearchView({
         body: JSON.stringify({ query }),
       });
       if (!response.ok || !response.body) {
-        fail();
+        // O servidor manda uma mensagem PT-PT já pronta (rate limit, sessão
+        // expirada) — mostrá-la é mais útil do que a genérica (spec §35).
+        const payload = await response.json().catch(() => null);
+        fail(typeof payload?.error === "string" ? payload.error : undefined);
         return;
       }
       const reader = response.body.getReader();
@@ -116,11 +140,16 @@ export function SearchView({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit(value)}
-          onBlur={() => submit(value)}
           placeholder={semantic ? "Ex.: o cliente que estava preocupado com o prazo" : "Pesquisar emails..."}
           className="h-10 pl-9"
+          aria-describedby="search-mode-hint"
         />
       </div>
+      <p id="search-mode-hint" className="sr-only">
+        {semantic
+          ? "Modo significado: prime Enter para pesquisar."
+          : "Modo palavras-chave: a pesquisa acontece enquanto escreve."}
+      </p>
 
       <div
         role="group"

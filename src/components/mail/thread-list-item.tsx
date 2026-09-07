@@ -95,9 +95,13 @@ export function ThreadListItem({
           });
         }}
         className={cn(
-          "flex size-6 shrink-0 items-center justify-center self-start rounded-md text-muted-foreground/50 transition-colors hover:text-amber-500",
-          thread.isStarred && "text-amber-500",
-          !thread.isStarred && "opacity-0 group-hover:opacity-100",
+          "flex size-6 shrink-0 items-center justify-center self-start rounded-md text-muted-foreground/50 transition-colors hover:text-amber-600 dark:hover:text-amber-500",
+          // `-600` em claro: o `-500` só dava 2.15:1, e a estrela é a única
+          // coisa a comunicar o estado (WCAG 1.4.11 pede 3:1 a ícones assim).
+          thread.isStarred && "text-amber-600 dark:text-amber-500",
+          // A estrela por preencher desaparece até ao hover — mas nunca para
+          // quem navega por teclado, senão o alvo do foco fica invisível.
+          !thread.isStarred && "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
         )}
         aria-label={thread.isStarred ? "Remover estrela" : "Adicionar estrela"}
       >

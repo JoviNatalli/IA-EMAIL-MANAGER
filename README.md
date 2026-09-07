@@ -6,11 +6,11 @@ SaaS de gestão inteligente de email com IA integrada como copiloto — não um
 chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 
 > Projeto de portfólio construído por fases. Este README reflete o estado
-> após a **Fase 6 — Pesquisa semântica e calendário real**. O plano completo (64 secções) está em
+> após a **Fase 7 — Polish**. O plano completo (64 secções) está em
 > [`docs/master-spec.md`](./docs/master-spec.md); o estado detalhado e as
 > decisões de execução de cada fase em [`docs/status.md`](./docs/status.md).
 
-## Estado atual (Fase 6 — Pesquisa semântica e calendário real) ✅
+## Estado atual (Fase 7 — Polish) ✅
 
 **Fase 1 — Foundation**
 - Next.js 16 (App Router, Turbopack, React 19.2), TypeScript strict
@@ -127,7 +127,7 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 > utilizador clicar em "Analisar com IA". Por spec (§13), a app nunca
 > apresenta como IA aquilo que não foi gerado por IA.
 
-**Fase 6 — Pesquisa semântica e calendário real** (nova)
+**Fase 6 — Pesquisa semântica e calendário real**
 - **Pesquisa semântica / RAG** (§24/§27): pipeline completo — limpar o texto
   do email, dividir em chunks com contexto, gerar embeddings
   (`gemini-embedding-001`, 768 dimensões) e guardar em **pgvector** com
@@ -164,6 +164,37 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 - **Fuso horário do utilizador**: capturado no browser e guardado em
   `user_preference`, usado pelo Calendar em vez do fuso do servidor
 
+**Fase 7 — Polish** (nova)
+- **Navegação mobile** (§37): abaixo de 768px a app não tinha forma nenhuma
+  de mudar de pasta (a sidebar é `md:flex`). Não foi encolhida — passou a
+  haver uma barra inferior com os cinco destinos de uso constante e um
+  drawer para o resto. Alvos de toque de 44px+ (WCAG 2.5.5), com teste E2E
+  a medi-los
+- **Atalhos de teclado** (§36): `C` (escrever), `G` depois `I` (Inbox), e —
+  só com uma conversa aberta — `R`, `A`/`E`, `S`. Nunca disparam dentro de
+  campos de texto. Listados em Definições → Atalhos, que até aqui prometia
+  atalhos que não existiam
+- **Acessibilidade medida, não estimada** (§36): um medidor de contraste
+  próprio (OKLCH → sRGB → luminância) sobre os 44 pares cor/fundo reais da
+  app encontrou 10 abaixo do mínimo WCAG AA, todos em tema claro (avatares,
+  chips de label, badges de prioridade, estrela, ícones do agente). Todos
+  corrigidos — **0 falhas na nova medição**. Mais nomes acessíveis nos
+  botões só-ícone e alvos de foco que desapareciam para quem navega por
+  teclado
+- **Animações da app** (§39): primitivas próprias, separadas das da landing
+  — 180ms em vez de 700ms, porque numa inbox usada dezenas de vezes por dia
+  a animação que se nota à segunda vez é atrito. `prefers-reduced-motion`
+  verificado com emulação real, não só por leitura do código
+- **Rate limiting** (§30): as rotas e Server Actions de IA passaram a ter
+  limite por utilizador — o risco concreto é um cliente com sessão válida
+  esgotar a quota diária gratuita do Gemini em segundos. E a chave da API
+  saiu do URL dos embeddings para um cabeçalho, para não acabar escrita nos
+  logs através de mensagens de erro que citam o URL
+- **Testes** (§49): 16 → **28 E2E** e 60 → **71 unitários**. Os testes de IA
+  correm contra o modelo real e verificam o contrato do §35 (resultado
+  válido ou mensagem PT-PT, nunca um erro cru), porque as chamadas ao
+  modelo são do servidor e o Playwright não as consegue intercetar
+
 ## Tech stack
 
 | Camada | Escolha |
@@ -175,7 +206,7 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 | IA | Camada própria de abstração sobre `@google/genai` (Gemini) e `@anthropic-ai/sdk` (Claude) — sem SDK de agente intermédio, para controlo total de structured outputs e tool calling |
 | Embeddings | `gemini-embedding-001` (768 dimensões) via REST — fora da abstração de provider, porque a Anthropic não tem embeddings |
 | Validação | Zod (inclui os structured outputs e os argumentos das ferramentas de IA) |
-| Testes | Vitest (unitários) + Playwright (E2E) |
+| Testes | Vitest (71 unitários) + Playwright (28 E2E) |
 | Animação | Framer Motion |
 
 > **Nota sobre o design system**: o CLI `shadcn` (`ui.shadcn.com`) não estava
@@ -307,7 +338,7 @@ para entrar imediatamente, sem criar conta (`demo@nuvoly.app` / `demo1234`).
 | `pnpm db:migrate` | Aplica migrations pendentes |
 | `pnpm db:seed` | Recria o utilizador e o dataset de demonstração (idempotente) |
 | `pnpm db:studio` | Drizzle Studio (explorar a BD) |
-| `pnpm test:unit` | Vitest — schemas de IA, prompts e invariantes das ferramentas |
+| `pnpm test:unit` | Vitest — schemas de IA, prompts, chunking, calendário, rate limiting |
 | `pnpm test:e2e` | Suite Playwright (reseeda a BD antes de correr) |
 
 ## Variáveis de ambiente
@@ -444,9 +475,9 @@ Ver [`.env.example`](./.env.example).
 - ~~**Fase 5** — AI Agent com tool calling, ações confirmáveis, tarefas,
   calendar intelligence e daily briefing~~ ✅
 - ~~**Fase 6** — Pesquisa semântica/RAG e integração real com o Google
-  Calendar~~ ✅ (a sincronização incremental do Gmail via `historyId`
-  continua em Future Improvements)
-- **Fase 7** — Polish: animações, responsividade, acessibilidade, testes
+  Calendar~~ ✅
+- ~~**Fase 7** — Polish: navegação mobile, atalhos de teclado,
+  acessibilidade, animações, testes, segurança~~ ✅
 - **Fase 8** — Landing final, demo mode com dataset completo, case study
 
 Plano detalhado por secção: [`docs/master-spec.md`](./docs/master-spec.md).

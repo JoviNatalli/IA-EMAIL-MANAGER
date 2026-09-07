@@ -164,7 +164,9 @@ export function CalendarList({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-7 opacity-0 transition-opacity group-hover:opacity-100"
+                // Só aparece no hover — mas nunca invisível para quem navega
+                // por teclado, senão o alvo do foco desaparece (Fase 7, §36).
+                className="size-7 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
                 disabled={isPending}
                 onClick={() => remove(event)}
                 aria-label="Remover evento"

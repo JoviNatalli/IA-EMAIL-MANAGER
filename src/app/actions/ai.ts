@@ -14,6 +14,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { aiAnalysis, emails, threads } from "@/lib/db/schema";
 import { requireOwnThread, requireUserId } from "@/app/actions/emails";
+import { AI_ACTION_LIMIT, guardAiRateLimit } from "@/lib/rate-limit";
 import { AIError, AIProviderNotConfiguredError } from "@/lib/ai/errors";
 import {
   buildClassificationPrompt,
@@ -95,6 +96,7 @@ export async function getCachedAnalysis(threadId: string): Promise<ThreadAnalysi
  */
 export async function analyzeThread(threadId: string): Promise<ThreadAnalysis> {
   const userId = await requireUserId();
+  guardAiRateLimit(AI_ACTION_LIMIT, userId);
   await requireOwnThread(userId, threadId);
   const { subject, messages } = await loadThreadMessages(threadId);
   if (messages.length === 0) {
@@ -178,6 +180,7 @@ export async function generateReply(
   options: { tone: ReplyTone; length: ReplyLength; instructions?: string },
 ): Promise<string> {
   const userId = await requireUserId();
+  guardAiRateLimit(AI_ACTION_LIMIT, userId);
   await requireOwnThread(userId, threadId);
   const { subject, messages } = await loadThreadMessages(threadId);
   if (messages.length === 0) throw new Error("Esta conversa não tem mensagens para responder.");
@@ -202,6 +205,7 @@ export async function generateReply(
 /** Smart Reply / quick replies (spec §15). */
 export async function getQuickReplies(threadId: string): Promise<string[]> {
   const userId = await requireUserId();
+  guardAiRateLimit(AI_ACTION_LIMIT, userId);
   await requireOwnThread(userId, threadId);
   const { subject, messages } = await loadThreadMessages(threadId);
   if (messages.length === 0) return [];
@@ -223,7 +227,7 @@ export async function getQuickReplies(threadId: string): Promise<string[]> {
 
 /** AI Compose actions (spec §41/§42) — opera sobre texto ainda não guardado. */
 export async function runComposeAction(action: ComposeAction, text: string, targetLanguage?: string): Promise<string> {
-  await requireUserId();
+  guardAiRateLimit(AI_ACTION_LIMIT, await requireUserId());
   const trimmed = text.trim();
   if (!trimmed) throw new Error("Escreva algum texto antes de usar uma ação de IA.");
   if (action !== "continue" && trimmed.length < 3) {
@@ -250,7 +254,7 @@ export async function generateEmailDraft(instruction: string): Promise<{ subject
   const trimmed = instruction.trim();
   if (!trimmed) throw new Error("Descreva o email que quer escrever.");
   const session = await auth();
-  await requireUserId();
+  guardAiRateLimit(AI_ACTION_LIMIT, await requireUserId());
 
   try {
     const provider = getAIProvider();
@@ -269,6 +273,7 @@ export async function generateEmailDraft(instruction: string): Promise<{ subject
 /** Daily AI Briefing (spec §19) — uma chamada, por cima de contagens reais. */
 export async function generateDailyBriefing() {
   const userId = await requireUserId();
+  guardAiRateLimit(AI_ACTION_LIMIT, userId);
   const data = await collectBriefingData(userId);
   try {
     return await generateBriefingText(data);

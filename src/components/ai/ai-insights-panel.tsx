@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CATEGORY_LABEL, PRIORITY_BADGE_CLASS, PRIORITY_LABEL, SENTIMENT_LABEL } from "@/components/ai/ai-labels";
 import { ReplyGeneratorDialog } from "@/components/ai/reply-generator-dialog";
+import { PanelIn } from "@/components/shared/motion";
 import { cn } from "@/lib/utils";
 
 export function AiInsightsPanel({
@@ -81,7 +82,10 @@ export function AiInsightsPanel({
 
   return (
     <>
-      <div className="flex flex-col gap-2.5 rounded-lg border border-border bg-card px-4 py-3">
+      {/* O resultado da análise foi PEDIDO pelo utilizador e demora vários
+          segundos a chegar — aparecer com um movimento curto marca a
+          chegada em vez de o substituir de repente (spec §39). */}
+      <PanelIn className="flex flex-col gap-2.5 rounded-lg border border-border bg-card px-4 py-3">
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-1.5">
             <Badge className={cn(PRIORITY_BADGE_CLASS[analysis.priority])}>
@@ -130,7 +134,7 @@ export function AiInsightsPanel({
             Draft reply com IA
           </Button>
         </div>
-      </div>
+      </PanelIn>
 
       <ReplyGeneratorDialog
         open={replyDialogOpen}

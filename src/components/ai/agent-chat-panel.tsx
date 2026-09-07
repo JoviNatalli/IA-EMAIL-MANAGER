@@ -28,6 +28,7 @@ import {
   createTaskFromProposal,
 } from "@/app/actions/agent";
 import { Button } from "@/components/ui/button";
+import { ListItemIn, PanelIn } from "@/components/shared/motion";
 import { Textarea } from "@/components/ui/textarea";
 import type { AgentUiPayload } from "@/lib/ai/tools";
 import { cn } from "@/lib/utils";
@@ -300,7 +301,12 @@ export function AgentChatPanel() {
             className="min-h-11 flex-1 resize-none"
             disabled={isRunning}
           />
-          <Button size="icon" onClick={() => send(input)} disabled={isRunning || !input.trim()}>
+          <Button
+            size="icon"
+            onClick={() => send(input)}
+            disabled={isRunning || !input.trim()}
+            aria-label="Enviar mensagem ao copiloto"
+          >
             {isRunning ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
           </Button>
         </div>
@@ -327,17 +333,17 @@ function AssistantBubble({
         {turn.steps.length > 0 && (
           <div className="flex flex-col gap-1 rounded-lg border border-border bg-muted/30 px-3 py-2">
             {turn.steps.map((step, i) => (
-              <div key={i} className="flex items-center gap-2 text-xs text-muted-foreground">
+              <ListItemIn key={i} index={i} className="flex items-center gap-2 text-xs text-muted-foreground">
                 {!step.done ? (
                   <Loader2 className="size-3 animate-spin" />
                 ) : step.ok ? (
-                  <Check className="size-3 text-emerald-500" />
+                  <Check className="size-3 text-emerald-600 dark:text-emerald-500" />
                 ) : (
-                  <AlertTriangle className="size-3 text-amber-500" />
+                  <AlertTriangle className="size-3 text-amber-700 dark:text-amber-500" />
                 )}
                 <span>{TOOL_LABEL[step.tool] ?? step.tool}</span>
                 {step.summary && <span className="truncate opacity-70">— {step.summary}</span>}
-              </div>
+              </ListItemIn>
             ))}
           </div>
         )}
@@ -355,11 +361,15 @@ function AssistantBubble({
         )}
 
         {turn.proposals.map((payload, i) => (
-          <ProposalCard key={i} payload={payload} />
+          <PanelIn key={i}>
+            <ProposalCard payload={payload} />
+          </PanelIn>
         ))}
 
         {turn.confirmation && (
-          <ConfirmationCard confirmation={turn.confirmation} onResolve={onResolveConfirmation} />
+          <PanelIn>
+            <ConfirmationCard confirmation={turn.confirmation} onResolve={onResolveConfirmation} />
+          </PanelIn>
         )}
 
         {turn.error && (
@@ -388,7 +398,7 @@ function ConfirmationCard({
         className={cn(
           "rounded-lg border px-3 py-2 text-xs",
           confirmation.resolution.ok
-            ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
+            ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400"
             : "border-border bg-muted/30 text-muted-foreground",
         )}
       >
@@ -417,7 +427,7 @@ function ConfirmationCard({
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-amber-500/40 bg-amber-500/5 px-3 py-2.5">
       <div className="flex items-start gap-2 text-sm text-foreground">
-        <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-500" />
+        <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-500" />
         <div>
           <p className="font-medium">Confirmação necessária</p>
           <p className="text-xs text-muted-foreground">{confirmation.summary}</p>

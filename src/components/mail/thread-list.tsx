@@ -3,6 +3,7 @@
 import { PenSquare } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ListItemIn } from "@/components/shared/motion";
 import { ThreadListItem } from "@/components/mail/thread-list-item";
 import { useCompose } from "@/components/mail/compose-provider";
 import type { ThreadListItem as ThreadListItemData } from "@/lib/emails/queries";
@@ -47,14 +48,15 @@ export function ThreadList({
         emptyState
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {items.map((thread) => (
-            <ThreadListItem
-              key={thread.id}
-              thread={thread}
-              href={`${basePath}/${thread.id}`}
-              active={thread.id === selectedThreadId}
-              currentUserEmail={currentUserEmail}
-            />
+          {items.map((thread, index) => (
+            <ListItemIn key={thread.id} index={index}>
+              <ThreadListItem
+                thread={thread}
+                href={`${basePath}/${thread.id}`}
+                active={thread.id === selectedThreadId}
+                currentUserEmail={currentUserEmail}
+              />
+            </ListItemIn>
           ))}
         </div>
       )}

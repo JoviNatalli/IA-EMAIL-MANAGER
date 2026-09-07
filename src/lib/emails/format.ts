@@ -9,13 +9,23 @@ export function initials(name: string | null, email: string): string {
   return source.slice(0, 2).toUpperCase();
 }
 
+/**
+ * Iniciais dos avatares (Fase 7 — acessibilidade).
+ *
+ * Os tons `-700` (e `-800` no âmbar) não são escolha estética: com o `-600`
+ * que aqui estava, as iniciais sobre o fundo `/15` mediam 2.84–4.55:1 em
+ * tema claro, abaixo dos 4.5:1 do WCAG AA. Medido, não estimado. O âmbar é
+ * o único a precisar de `-800` porque é o tom mais claro da paleta e o
+ * `-700` fica em 4.49:1 — falha por 0.01.
+ * Em tema escuro os `-400` já passavam com folga (5.5–8:1) e ficam como estão.
+ */
 const AVATAR_PALETTE = [
-  "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-  "bg-purple-500/15 text-purple-600 dark:text-purple-400",
-  "bg-amber-500/15 text-amber-600 dark:text-amber-400",
-  "bg-rose-500/15 text-rose-600 dark:text-rose-400",
-  "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
-  "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400",
+  "bg-blue-500/15 text-blue-700 dark:text-blue-400",
+  "bg-purple-500/15 text-purple-700 dark:text-purple-400",
+  "bg-amber-500/15 text-amber-800 dark:text-amber-400",
+  "bg-rose-500/15 text-rose-700 dark:text-rose-400",
+  "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  "bg-cyan-500/15 text-cyan-700 dark:text-cyan-400",
 ];
 
 /** Cor determinística a partir do email — o mesmo remetente fica sempre com a mesma cor. */

@@ -34,7 +34,7 @@ export function NavUserMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="rounded-full">
+        <Button variant="ghost" size="icon" className="rounded-full" aria-label="Menu da conta">
           <Avatar className="size-8">
             {image && <AvatarImage src={image} alt={name ?? "Utilizador"} />}
             <AvatarFallback>{initials(name, email)}</AvatarFallback>

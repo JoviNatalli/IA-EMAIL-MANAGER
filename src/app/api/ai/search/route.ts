@@ -13,6 +13,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { AIError, AIProviderNotConfiguredError } from "@/lib/ai/errors";
 import { streamRagAnswer } from "@/lib/ai/rag";
+import { AI_SEARCH_LIMIT, checkRateLimit } from "@/lib/rate-limit";
 import { semanticSearch } from "@/lib/search/semantic";
 
 const requestSchema = z.object({
@@ -23,6 +24,16 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  }
+
+  // Rate limiting (spec §30): cada resposta gasta um embedding da pergunta
+  // mais uma chamada ao modelo — é das rotas mais caras da app.
+  const rate = checkRateLimit(AI_SEARCH_LIMIT, session.user.id);
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Demasiadas pesquisas com IA seguidas. Aguarde um momento." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } },
+    );
   }
 
   const body = await request.json().catch(() => null);

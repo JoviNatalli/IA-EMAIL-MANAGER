@@ -42,6 +42,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { EmptyState } from "@/components/shared/empty-state";
+import { useThreadShortcuts } from "@/components/layout/shortcuts-provider";
 import { SenderAvatar } from "@/components/mail/sender-avatar";
 import { LabelChip, LABEL_DOT_CLASSES } from "@/components/mail/label-chip";
 import { useCompose } from "@/components/mail/compose-provider";
@@ -157,6 +158,24 @@ export function ThreadDetail({
     setReplyBody(body);
   }
 
+  /**
+   * Atalhos de teclado da conversa aberta (spec §36). Registados aqui e não
+   * num listener global porque só este componente sabe se a conversa é um
+   * rascunho, se está no lixo, ou se já está arquivada — `A` numa conversa
+   * do lixo não deve arquivar nada.
+   */
+  useThreadShortcuts({
+    onReply: canReply ? () => setReplyMode((current) => current ?? "reply") : undefined,
+    onArchive:
+      !isDraft && !isTrash && thread.folder !== "archive"
+        ? () => runAction(() => moveThread(thread.id, "archive"), "Arquivado.")
+        : undefined,
+    onStar:
+      !isDraft && !isTrash
+        ? () => runAction(() => toggleThreadStar(thread.id, !thread.isStarred))
+        : undefined,
+  });
+
   function handleForward() {
     if (!lastMessage) return;
     openCompose({
@@ -167,7 +186,14 @@ export function ThreadDetail({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center gap-1 border-b border-border px-3 py-2">
+      {/* `data-testid` porque as mesmas ações (estrela, arquivar) existem
+          também em cada linha da lista — sem isto, um locator por
+          `aria-label` apanha as duas colunas (mesmo padrão do
+          `thread-labels` que já existia). */}
+      <div
+        data-testid="thread-toolbar"
+        className="flex shrink-0 items-center gap-1 border-b border-border px-3 py-2"
+      >
         <Button
           variant="ghost"
           size="icon"
@@ -265,7 +291,7 @@ export function ThreadDetail({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" disabled={isPending}>
+                <Button variant="ghost" size="icon" disabled={isPending} aria-label="Aplicar labels">
                   <Tag className="size-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -413,7 +439,12 @@ function ToolbarButton({
           size="icon"
           onClick={onClick}
           disabled={disabled}
-          className={cn(active && "text-amber-500", destructive && "hover:text-destructive")}
+          // `-600` em tema claro: o `-500` dava 2.15:1 sobre o card branco,
+          // abaixo dos 3:1 que o WCAG pede a um ícone que carrega significado.
+          className={cn(
+            active && "text-amber-600 dark:text-amber-500",
+            destructive && "hover:text-destructive",
+          )}
           aria-label={label}
         >
           <Icon className={cn("size-4", active && "fill-current")} />

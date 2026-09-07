@@ -7,6 +7,8 @@ import { CommandPalette } from "@/components/layout/command-palette";
 import { CommandPaletteProvider } from "@/components/layout/command-palette-provider";
 import { ComposeDialog } from "@/components/mail/compose-dialog";
 import { ComposeProvider } from "@/components/mail/compose-provider";
+import { MobileNav } from "@/components/layout/mobile-nav";
+import { ShortcutsProvider } from "@/components/layout/shortcuts-provider";
 import { TimeZoneSync } from "@/components/layout/timezone-sync";
 import { getUserTimeZone } from "@/lib/users/preferences";
 import { getFolderCounts } from "@/lib/emails/queries";
@@ -29,18 +31,28 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
   return (
     <ComposeProvider>
       <TimeZoneSync storedTimeZone={storedTimeZone} />
-      <CommandPaletteProvider>
-        <div className="flex h-svh overflow-hidden bg-background">
-          <AppSidebar counts={folderCounts} />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <AppTopbar user={session.user} />
-            <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-              {children}
-            </main>
+      {/* Dentro do ComposeProvider porque `C` abre o compose; fora do
+          CommandPaletteProvider, que trata do seu próprio ⌘K e `/`. */}
+      <ShortcutsProvider>
+        <CommandPaletteProvider>
+          <div className="flex h-svh overflow-hidden bg-background">
+            <AppSidebar counts={folderCounts} />
+            <div className="flex min-w-0 flex-1 flex-col">
+              <AppTopbar user={session.user} />
+              <main
+                id="conteudo"
+                // A barra de navegação inferior é `fixed` em mobile: sem este
+                // espaço, o fim de qualquer lista fica escondido por baixo dela.
+                className="flex min-h-0 flex-1 flex-col overflow-y-auto pb-[calc(3.25rem+env(safe-area-inset-bottom))] md:pb-0"
+              >
+                {children}
+              </main>
+            </div>
           </div>
-        </div>
-        <CommandPalette />
-      </CommandPaletteProvider>
+          <MobileNav counts={folderCounts} />
+          <CommandPalette />
+        </CommandPaletteProvider>
+      </ShortcutsProvider>
       <ComposeDialog />
     </ComposeProvider>
   );

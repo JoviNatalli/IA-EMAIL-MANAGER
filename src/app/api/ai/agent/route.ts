@@ -14,6 +14,7 @@ import { z } from "zod";
 import { auth } from "@/auth";
 import { runAgentTurn, type AgentEvent } from "@/lib/ai/agent";
 import { AIError, AIProviderNotConfiguredError } from "@/lib/ai/errors";
+import { AI_AGENT_LIMIT, checkRateLimit } from "@/lib/rate-limit";
 
 const MAX_HISTORY_MESSAGES = 20;
 
@@ -33,6 +34,17 @@ export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+  }
+
+  // Rate limiting (spec §30) — antes de ler o corpo: um pedido travado não
+  // deve custar sequer o parse. Um turno do agente gasta várias chamadas ao
+  // modelo, por isso o limite é mais apertado do que o da pesquisa.
+  const rate = checkRateLimit(AI_AGENT_LIMIT, session.user.id);
+  if (!rate.ok) {
+    return NextResponse.json(
+      { error: "Demasiados pedidos ao copiloto. Aguarde um momento e tente novamente." },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } },
+    );
   }
 
   const body = await request.json().catch(() => null);

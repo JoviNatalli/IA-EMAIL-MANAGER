@@ -36,7 +36,7 @@ export function AppTopbar({
       <div className="ml-auto flex items-center gap-1">
         <Tooltip>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" disabled>
+            <Button variant="ghost" size="icon" disabled aria-label="Notificações (em breve)">
               <Bell className="size-4" />
             </Button>
           </TooltipTrigger>

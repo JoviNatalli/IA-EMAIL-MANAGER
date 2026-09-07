@@ -19,14 +19,20 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 
-const shortcuts: [string, string][] = [
-  ["C", "Compose email"],
-  ["R", "Reply"],
-  ["A / E", "Archive"],
-  ["S", "Star"],
-  ["/", "Search / Command palette"],
-  ["G depois I", "Ir para Inbox"],
-  ["⌘ K", "Command palette"],
+/**
+ * Atalhos reais (spec §36) — implementados em `shortcuts-provider.tsx` e no
+ * `command-palette-provider.tsx`. Esta lista era uma promessa até à Fase 7;
+ * agora descreve o que existe mesmo, incluindo o âmbito de cada um (os de
+ * conversa só funcionam com uma conversa aberta).
+ */
+const shortcuts: { keys: string; label: string; scope?: string }[] = [
+  { keys: "⌘ K", label: "Command palette" },
+  { keys: "/", label: "Pesquisar" },
+  { keys: "C", label: "Escrever email" },
+  { keys: "G depois I", label: "Ir para o Inbox" },
+  { keys: "R", label: "Responder", scope: "conversa aberta" },
+  { keys: "A / E", label: "Arquivar", scope: "conversa aberta" },
+  { keys: "S", label: "Estrela", scope: "conversa aberta" },
 ];
 
 export default async function SettingsPage() {
@@ -153,18 +159,28 @@ export default async function SettingsPage() {
 
         <TabsContent value="shortcuts" className="mt-6">
           <div className="divide-y divide-border rounded-lg border border-border">
-            {shortcuts.map(([key, label]) => (
+            {shortcuts.map((shortcut) => (
               <div
-                key={key}
-                className="flex items-center justify-between px-4 py-2.5 text-sm"
+                key={shortcut.keys}
+                className="flex items-center justify-between gap-4 px-4 py-2.5 text-sm"
               >
-                <span className="text-muted-foreground">{label}</span>
-                <kbd className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
-                  {key}
+                <span className="min-w-0 text-muted-foreground">
+                  {shortcut.label}
+                  {shortcut.scope && (
+                    <span className="ml-1.5 text-xs text-muted-foreground/80">
+                      · {shortcut.scope}
+                    </span>
+                  )}
+                </span>
+                <kbd className="shrink-0 rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-xs text-foreground">
+                  {shortcut.keys}
                 </kbd>
               </div>
             ))}
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Os atalhos nunca disparam enquanto escreve num campo de texto.
+          </p>
         </TabsContent>
       </Tabs>
     </div>

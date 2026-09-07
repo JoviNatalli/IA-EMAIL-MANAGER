@@ -4,7 +4,7 @@
 > Regra do projeto: avançar fase a fase, verificar qualidade/tipos/lint e testar
 > manualmente no fim de cada fase antes de passar à seguinte (master-spec §56).
 
-## Estado (2026-09-07)
+## Estado (2026-09-08)
 
 - **Fases 1-3: completas e testadas manualmente.**
 - **Fase 4 (IA): FECHADA e testada manualmente com modelo real (Gemini).**
@@ -23,22 +23,24 @@
   com o Gemini real (2026-09-06).** 20 ferramentas, ciclo do agente com o
   pipeline do §59, ações confirmáveis (§18), extração de tarefas (§20),
   deteção de reuniões (§21) e Daily Briefing (§19). Ver "Fase 5 — AI Agent"
-  abaixo. Falta a validação final do utilizador para a dar por fechada.
-- **Fase 7 (parcial) — redesign visual da landing + refresh de tokens
-  (2026-09-06).** Reordenação deliberada, decidida com o utilizador: o §60 do
-  master-spec põe UX e qualidade visual acima da integração de IA, e a
-  primeira impressão da landing pesa muito num projeto de portfólio. Ver
-  "Fase 7 (parcial)" abaixo.
+  abaixo. **FECHADA** — validada manualmente pelo utilizador (2026-09-08):
+  o agente funciona ponta a ponta com a conta real.
+- **Fase 7 — Polish: COMPLETA (2026-09-08).** Tinha sido feita em duas
+  partes: primeiro a landing (2026-09-06, fora de ordem por decisão do
+  utilizador — o §60 põe UX e qualidade visual acima da integração de IA), e
+  agora o que faltava na APP, que o redesign da landing tinha deixado
+  deliberadamente intocada. Ver "Fase 7 (parcial)" e "Fase 7 — Polish da
+  app" abaixo.
 - **Fase 6 (pesquisa semântica/RAG + Google Calendar real): implementada
   (2026-09-07).** pgvector a funcionar no PGlite local, pipeline completo do
   §27 (limpar → chunk → embedding → pgvector → retrieval → resposta), modo
   "Significado" em `/app/search`, ferramenta `searchEmailsByMeaning` no
   agente, e integração real com o Google Calendar com autorização
-  incremental. Ver "Fase 6" abaixo. **Uma parte fica por validar por
-  depender de configuração na Google Cloud Console — ler
-  "O que falta para o calendário funcionar".**
-  A sincronização incremental do Gmail (`historyId`) NÃO foi feita e
-  continua em Future Improvements.
+  incremental. Ver "Fase 6" abaixo. **FECHADA** — o utilizador confirmou
+  manualmente (2026-09-08) que o Google Calendar funciona com a conta real,
+  depois de registar o redirect URI na Google Cloud Console. A
+  sincronização incremental do Gmail (`historyId`) foi feita a seguir, na
+  ronda de "pontos de atenção" — ver "Atualização 2026-09-07 (2)".
 - Stack: Next.js 16 (App Router, Turbopack), TypeScript strict, Tailwind v4,
   design system próprio sobre Radix, Drizzle + PostgreSQL, Auth.js v5
   (Credentials + Google OAuth real), Gmail API via `fetch` direto (sem SDK
@@ -533,11 +535,9 @@ global) mas não foi emulado no browser. **Fica para o utilizador confirmar.**
 
 - **UX da app intocada**: nenhuma mudança em `components/mail`, `ai`,
   `dashboard`, `tasks`, `calendar`.
-- **Contrastes fracos que já existiam na app** (iniciais dos avatares
-  2.85–3.63:1, chips de label 3.31:1, badge de prioridade 3.91:1). Vêm de
-  cores da paleta Tailwind escritas nos componentes, não dos tokens, e não
-  foram introduzidos por este trabalho. Ficam para a passagem de
-  acessibilidade da Fase 7 completa.
+- ~~**Contrastes fracos que já existiam na app**~~ — **resolvidos em
+  2026-09-08**, na Fase 7 completa (ver "Fase 7 — Polish da app"): 10 pares
+  abaixo do mínimo, todos corrigidos, 0 falhas na nova medição.
 - **Fontes das referências partilhadas** (Envato Elements): exigem
   subscrição ativa e a licença não permite deixar os ficheiros num
   repositório público. A direção foi reproduzida com fontes livres
@@ -664,11 +664,11 @@ mesmo cliente OAuth da Google Cloud Console é preciso:
    `https://www.googleapis.com/auth/calendar.events`
 3. **APIs & Services → Library** → ativar a **Google Calendar API**
 
-Só depois disto é possível fazer o teste que falta: ligar o calendário com
-`cansvitor@gmail.com` (único test user autorizado) e confirmar que um evento
-criado na app aparece mesmo no Google Calendar. **Até lá, a integração está
-implementada e testada por partes, mas não ponta a ponta — e este documento
-não a dá por confirmada.**
+**FEITO e confirmado (2026-09-08).** O utilizador registou o redirect URI,
+ligou o calendário com a conta real e confirmou que a integração funciona
+ponta a ponta. O que travou não foi código: ativar a Calendar API na
+Library **não** regista o redirect URI — são dois ecrãs diferentes da
+Console, e faltava o segundo.
 
 ### Testes
 
@@ -698,10 +698,10 @@ site está em baixo e os clientes não conseguem pagar", **recusou-se a
 inventar**: disse que não encontrou nada sobre isso e apontou o que existe
 mesmo (erro 500 ao guardar preferências), citando os excertos.
 
-**Não verificado**: o fluxo OAuth do calendário ponta a ponta e a criação de
-um evento real no Google (bloqueado pela configuração acima); e o
-comportamento com uma caixa de Gmail real grande (o dataset de teste é o de
-seed).
+**Confirmado depois (2026-09-08)**: o fluxo OAuth do calendário e a criação
+de eventos reais no Google, testados pelo utilizador com a conta ligada.
+**Continua por verificar**: o comportamento com uma caixa de Gmail real
+grande — o dataset de teste é o de seed (30 threads no máximo).
 
 ### Fora do âmbito desta fase (documentado, não escondido)
 
@@ -831,12 +831,224 @@ um evento no Google Calendar, ou receber um email novo) para se confirmar
 ponta a ponta — isso só o utilizador consegue fazer com a conta real
 ligada.
 
+## Fase 7 — Polish da app (2026-09-08)
+
+O redesign de 2026-09-06 tratou da landing e deixou `/app/*` intocada de
+propósito. Esta ronda fecha o que o §56 atribui à Fase 7 dentro da app.
+
+### Git arrumado primeiro (Passo 0)
+
+`main` estava parado em `b92e1cd` (2026-09-05) e todo o trabalho das Fases
+4-7 vivia em quatro branches locais. Confirmado com `git merge-base
+--is-ancestor` que eram uma linha reta sem divergência; `main` avançou por
+fast-forward 16 commits e os nomes intermédios (`phase-4-gemini-provider`,
+`phase-5-ai-agent`, `phase-6-semantic-search`, `phase-7-landing-redesign`)
+foram apagados.
+
+**O push falhou e continua por fazer**: o keychain do macOS tem credenciais
+de `FireHorseWM` para um repositório de `JoviNatalli`, e a Google recusa com
+`403 Permission denied`. Não é algo que eu possa resolver — passa por
+atualizar a credencial (o mesmo PAT que continua por rodar, ver notas
+operacionais). `main` local está 16 commits à frente de `origin/main`.
+
+### 1. Navegação mobile (§37) — era uma lacuna funcional
+
+`app-sidebar.tsx` é `hidden ... md:flex`: abaixo de 768px a app não tinha
+**nenhuma** forma de mudar de pasta. Não foi a sidebar encolhida; é outra
+hierarquia, como o §37 pede:
+
+- barra inferior fixa com os cinco destinos de uso constante (Inbox,
+  Tarefas, Agenda, Copiloto, Mais), ao alcance do polegar, com
+  `env(safe-area-inset-bottom)` para não ficar por baixo da home indicator
+  do iOS;
+- drawer (`vaul`, o primitivo `drawer.tsx` já existia — não foi preciso
+  criar um `Sheet`) para o resto: pastas menos usadas, labels, briefing,
+  definições.
+
+Alvos de toque medidos: 75×55px na barra, 44px mínimo no drawer — acima dos
+44×44 das WCAG 2.5.5, com teste E2E a impedir regressão. `main` ganhou
+`padding-bottom` em mobile para o fim das listas não ficar escondido.
+
+### 2. Atalhos de teclado (§36)
+
+Só existia `/` e `⌘K`. Novos: `C` (compose), `G` depois `I` (ir para o
+Inbox, sequência com janela de 1.2s), e — só com uma conversa aberta — `R`
+(responder), `A`/`E` (arquivar), `S` (estrela).
+
+Decisão de arquitetura: um único listener global em `shortcuts-provider.tsx`
+em vez de um por componente. Os atalhos de conversa são REGISTADOS pelo
+`ThreadDetail` (`useThreadShortcuts`) e limpos quando ele desmonta — só ele
+sabe se a conversa é rascunho, está no lixo, ou já está arquivada, e `A`
+numa conversa do lixo não pode arquivar nada. O guard `isTypingTarget` foi
+reaproveitado do command palette e alargado a `contentEditable`.
+
+A lista em Definições → Atalhos era uma promessa (listava atalhos que não
+existiam); agora descreve o que existe, com o âmbito de cada um.
+
+### 3. Acessibilidade (§36) — medido, não estimado
+
+Escrevi um medidor de contraste (OKLCH → sRGB → luminância) para os pares
+cor/fundo reais da app. **44 pares medidos, 10 falhavam — todos em tema
+claro; o tema escuro estava limpo.** Corrigidos:
+
+| O quê | Antes | Depois |
+| --- | --- | --- |
+| Iniciais dos avatares (6 cores) | 2.84–4.55:1 | 4.49–5.82:1 (`-700`, âmbar `-800`) |
+| Chips de label | 3.33–4.86:1 | 4.67–9.15:1 (`-700`) |
+| Badge de prioridade | 2.95–6.69:1 | 4.67–9.15:1 (`-700`) |
+| Estrela ativa | 2.15:1 | 3.19:1 (`-600`, mínimo de ícone é 3:1) |
+| Ícones dos passos do agente | 2.06–2.37:1 | 3.53–4.86:1 |
+
+O âmbar dos avatares é o único a usar `-800`: com `-700` fica em 4.49:1,
+falha por 0.01. Nova medição: **0 falhas em 44 pares.**
+
+Também: quatro botões só-ícone sem nome acessível (menu da conta, enviar ao
+copiloto, aplicar labels, notificações) e três alvos de foco que
+desapareciam para quem navega por teclado (`opacity-0 group-hover:` sem
+`focus-visible:`) — estrela da lista, apagar tarefa, apagar evento.
+
+### 4. Animações (§39)
+
+`src/components/shared/motion.tsx`, separado das primitivas da landing de
+propósito: lá o movimento é editorial (700ms); numa inbox que se usa dezenas
+de vezes por dia, animação que se nota à segunda vez é atrito. 180ms, só
+`transform`/`opacity`, `useReducedMotion` como primeira verificação de cada
+primitiva. Aplicado a: emails a entrar na lista (com teto de escalonamento —
+sem ele o 40.º email esperava meio segundo), painel de insights, passos do
+agente, propostas e cartão de confirmação, indicador da barra mobile.
+
+**`prefers-reduced-motion` verificado a sério pela primeira vez** (na Fase 7
+parcial ficou por emular). Aqui apanhei um bug NO TESTE: `test.use({
+reducedMotion: "reduce" })` não chegava à página nesta combinação de
+Playwright + chrome-headless-shell (`matchMedia(...).matches` continuava
+`false`), e o teste passava a verificar o oposto do que dizia. Com
+`page.emulateMedia()` explícito a emulação funciona e a app comporta-se
+bem: opacidade 1 imediata, `transform: none`, zero animação.
+
+### 5. Performance (§38) — o que NÃO foi feito, e porquê
+
+- **Virtualização de listas: não implementada, por decisão.** Números reais:
+  o sync inicial do Gmail está limitado a 30 threads, a base de dados local
+  tem 73 no total (3 utilizadores) e a maior caixa tem 30. Virtualizar 30
+  linhas seria código morto com custo de manutenção. Passa a valer a pena
+  algures acima de ~200 linhas — e o primeiro passo para lá chegar é subir
+  o teto do sync, não virtualizar. Mesma lógica de honestidade aplicada ao
+  RAG na Fase 6.
+- **Debounce: só no modo palavras-chave.** Não havia nenhum (submetia no
+  Enter e — pior — no `blur`, o que provocava navegação dupla ao clicar no
+  seletor de modo). Agora: 350ms no modo palavras-chave (é um `ilike`
+  local); no modo "Significado" continua só no Enter, porque cada pesquisa
+  gasta uma chamada de embeddings e escrever uma frase esgotaria quota (§51).
+  A assimetria é deliberada.
+- **Code splitting: nada a fazer.** O componente pesado (`AgentChatPanel`,
+  542 linhas) já está isolado em `/app/ai` pelo route splitting do Next; os
+  outros têm 54–161 linhas, onde um `dynamic()` acrescentaria estado de
+  carregamento por uns KB. **Tentei atribuir bundles por rota e não
+  consegui**: os manifests do Turbopack em `.next/server/app/**` reportam
+  todos o mesmo bootstrap partilhado (539KB), sem separar o que é da rota.
+  A decisão assenta nos tamanhos dos ficheiros e na estrutura de imports,
+  não numa medição por rota — fica dito.
+
+### 6. Testes (§49)
+
+De 16 para **28 E2E** e de 60 para **71 unitários**.
+
+`tests/e2e/ai.spec.ts` (6) — decisão de desenho que muda o que provam: as
+chamadas ao modelo acontecem no SERVIDOR, e o `page.route()` do Playwright
+não as interceta; mocká-las exigiria uma camada de injeção que só existiria
+para os testes. Correm por isso contra o Gemini real, e verificam o
+**contrato** do §35: cada fluxo acaba num resultado válido OU numa mensagem
+PT-PT — nunca num ecrã partido, erro cru ou spinner eterno. Há uma lista de
+padrões de "erro técnico à solta" que falha o teste se algum aparecer.
+
+O teste do agente começou por falhar e **não era bug**: o agente pesquisou,
+encontrou só 1 newsletter na inbox (a outra está no lixo) e perguntou em
+texto em vez de propor uma ação em massa — exatamente o comportamento certo.
+O teste é que assumia ≥2 itens. Reescrito para verificar a invariante que
+interessa e é determinista: **em nenhum caminho o email sai do Inbox sem
+confirmação explícita** (§18).
+
+`tests/e2e/polish.spec.ts` (12) — deterministas, não tocam no modelo:
+navegação a 375px e 768px, alvos de toque ≥44px, drawer, ausência de scroll
+horizontal, cada atalho de teclado (incluindo a garantia de que não disparam
+dentro de campos de texto), `prefers-reduced-motion`, nomes acessíveis em
+todos os botões e ordem de tabulação.
+
+Unitários novos (11): `rate-limit.test.ts` — limites por utilizador e por
+regra, janela deslizante, e que o detalhe técnico nunca entra na mensagem
+mostrada.
+
+Nota operacional: o binário do Playwright não estava instalado nesta
+máquina (`npx playwright install chromium`).
+
+### 7. Segurança (§30) — dois achados reais
+
+- **Não havia rate limiting nenhum.** Agora há, em `src/lib/rate-limit.ts`:
+  janela deslizante em memória por utilizador, com limites diferentes por
+  superfície (agente 12/min, porque um turno gasta várias chamadas ao
+  modelo; pesquisa com IA 20/min; Server Actions de IA 25/min). As
+  limitações estão escritas no ficheiro em vez de escondidas: não sobrevive
+  a reinícios nem a várias instâncias, e para produção a sério isto é Redis.
+  O que resolve mesmo é o risco concreto deste projeto — um cliente com
+  sessão válida, ou um bug de UI em loop, a esgotar a quota diária gratuita
+  do Gemini em segundos (já aconteceu na Fase 5).
+- **A chave da API do Gemini ia no URL** dos embeddings (`?key=...`).
+  Mensagens de erro de `fetch`, stack traces e qualquer `console.error` que
+  registe o erro em bruto citam o URL — e a chave ficava escrita nos logs.
+  Passou para o cabeçalho `x-goog-api-key`. Verificado contra a API real
+  depois da mudança (768 dimensões, norma 1.0).
+
+Confirmado (não alterado, já estava certo): o RAG passa o conteúdo dos
+emails por `neutralizeDelimiters` tal como a Fase 5 (`buildRagPrompt`
+neutraliza assunto, remetente e corpo), e os `console.error` registam o
+objeto de erro, nunca o corpo dos emails nem o contexto do RAG.
+
+**Limpeza**: 16 ficheiros duplicados `* 2.ts`/`* 2.tsx` (artefactos de
+"manter ambos" do macOS, cópias idênticas, nunca commitados mas compilados
+pelo `tsc`) foram apagados depois de confirmado que ninguém os importava.
+
+### 8. Error handling (§35) — auditoria dos caminhos da Fase 6
+
+Todos os caminhos novos seguem o padrão: `mapEmbeddingError` e
+`CalendarError` já devolviam `userMessage` PT-PT, e a página do calendário e
+a rota do RAG traduzem antes de chegar à UI. Uma lacuna real: o cliente da
+pesquisa com IA descartava a mensagem do servidor e mostrava sempre a
+genérica — agora mostra a do servidor (rate limit, sessão expirada) quando
+existe, como o painel do agente já fazia.
+
+### Fora do âmbito desta fase (documentado, não escondido)
+
+- **Virtualização de listas** — ver ponto 5, com os números que sustentam a
+  decisão.
+- **Contraste da landing** — já tinha sido medido na Fase 7 parcial (mínimo
+  5.31:1); esta ronda mediu só a app.
+- **Teste em dispositivo físico**: a navegação mobile foi verificada em
+  viewport emulado (375px e 768px, no browser e em Playwright) e por
+  medição dos alvos de toque. **Não foi testada num telemóvel real** — o
+  brief pedia-o, e problemas de toque que só aparecem em hardware
+  (scroll momentum, gestos do drawer a competir com o swipe-back do iOS)
+  ficam por confirmar.
+- **Persistência das conversas do agente** e **notificações de lembretes**
+  continuam por fazer, como desde a Fase 5.
+
 ## Notas operacionais que ainda importam
 
-- **PAT do GitHub por rodar**: um Personal Access Token foi partilhado em
-  texto simples numa sessão anterior e reutilizado várias vezes para
-  pushes. Rodar/revogar em https://github.com/settings/tokens assim que
-  possível, se ainda não foi feito.
-- Ao fechar a Fase 4 e a Fase 5, atualizar este ficheiro (estado, decisões
-  de execução tomadas, o que ficou fora do âmbito) — é o que substitui o
-  hand-off manual entre sessões.
+- **PAT do GitHub por rodar E credencial errada no keychain**: um Personal
+  Access Token foi partilhado em texto simples numa sessão anterior. Além
+  de continuar por rodar (https://github.com/settings/tokens), o keychain
+  do macOS tem credenciais de `FireHorseWM` guardadas para `github.com`,
+  enquanto o repositório é de `JoviNatalli` — por isso `git push` devolve
+  `403 Permission denied`. **`main` local está 16 commits à frente de
+  `origin/main` e o push é ação do utilizador.** Para corrigir:
+  `git credential-osxkeychain erase` (com `host=github.com` e
+  `protocol=https`), ou apagar a entrada "github.com" no Acesso a Porta-
+  chaves, e autenticar de novo com o PAT correto no próximo push.
+- Atualizar este ficheiro no fim de cada fase (estado, decisões tomadas, o
+  que ficou fora do âmbito) — é o que substitui o hand-off manual entre
+  sessões.
+- **Sempre que um `ALTER TABLE` correr com o dev server já de pé há muito
+  tempo, reiniciar o dev server** — o PGlite local não invalida o estado de
+  conexões já abertas, e a app dá 500 com a coluna já criada na base de
+  dados (aconteceu na Fase 6, ver "Atualização 2026-09-07 (2)").
+- O binário do Playwright pode não estar instalado numa máquina nova:
+  `npx playwright install chromium`.

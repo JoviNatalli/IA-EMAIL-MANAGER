@@ -96,9 +96,14 @@ export async function embedTexts(texts: string[], task: EmbeddingTask): Promise<
 
   for (let start = 0; start < texts.length; start += MAX_BATCH) {
     const slice = texts.slice(start, start + MAX_BATCH);
-    const response = await fetch(`${ENDPOINT}/${EMBEDDING_MODEL}:batchEmbedContents?key=${key}`, {
+    // A chave vai em CABEÇALHO, nunca em `?key=` na query string (Fase 7,
+    // §30). A Gemini API aceita as duas formas, mas um URL com a chave
+    // acaba em sítios que não controlamos: mensagens de erro do `fetch`
+    // (que citam o URL), stack traces e qualquer `console.error` que
+    // registe o erro em bruto — e aí a chave fica escrita nos logs.
+    const response = await fetch(`${ENDPOINT}/${EMBEDDING_MODEL}:batchEmbedContents`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
         requests: slice.map((text) => ({
           model: `models/${EMBEDDING_MODEL}`,
