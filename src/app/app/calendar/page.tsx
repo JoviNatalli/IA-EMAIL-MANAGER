@@ -4,6 +4,7 @@ import { Calendar } from "lucide-react";
 import { auth } from "@/auth";
 import { EmptyState } from "@/components/shared/empty-state";
 import { CalendarList } from "@/components/calendar/calendar-list";
+import { listGoogleOnlyEventsForUser } from "@/lib/calendar/service";
 import { listCalendarEvents } from "@/lib/emails/productivity-queries";
 import { hasCalendarLinked } from "@/lib/google/tokens";
 
@@ -16,7 +17,18 @@ export default async function CalendarPage() {
     hasCalendarLinked(session.user.id),
   ]);
 
-  if (events.length === 0) {
+  // Só lê o Google quando há ligação — sem isto seria uma chamada à API só
+  // para descobrir o que já se sabia (não está ligado). Os eventos já
+  // criados a partir do Nuvoly ficam excluídos, para não aparecerem em
+  // duplicado (um como card local, outro como card "só no Google").
+  const localGoogleEventIds = new Set(
+    events.flatMap((e) => (e.googleEventId ? [e.googleEventId] : [])),
+  );
+  const { events: remoteEvents, error: remoteError } = calendarConnected
+    ? await listGoogleOnlyEventsForUser(session.user.id, localGoogleEventIds)
+    : { events: [], error: null };
+
+  if (events.length === 0 && remoteEvents.length === 0) {
     return (
       <EmptyState
         icon={Calendar}
@@ -30,5 +42,12 @@ export default async function CalendarPage() {
     );
   }
 
-  return <CalendarList events={events} calendarConnected={calendarConnected} />;
+  return (
+    <CalendarList
+      events={events}
+      remoteEvents={remoteEvents}
+      remoteError={remoteError}
+      calendarConnected={calendarConnected}
+    />
+  );
 }

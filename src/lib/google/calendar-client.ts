@@ -29,6 +29,31 @@ export interface GoogleCalendarEvent {
   htmlLink: string;
 }
 
+export interface RemoteCalendarEvent {
+  id: string;
+  title: string;
+  startsAt: Date;
+  /** `null` para eventos de dia inteiro (a API dá `date`, não `dateTime`). */
+  endsAt: Date | null;
+  location: string | null;
+  htmlLink: string;
+}
+
+interface GoogleEventTime {
+  dateTime?: string;
+  date?: string;
+}
+
+interface GoogleEventPayload {
+  id?: string;
+  status?: string;
+  summary?: string;
+  location?: string;
+  htmlLink?: string;
+  start?: GoogleEventTime;
+  end?: GoogleEventTime;
+}
+
 interface CalendarApiError {
   error?: { message?: string; errors?: { reason?: string }[] };
 }
@@ -140,6 +165,60 @@ export async function insertCalendarEvent(
     });
   }
   return { id: event.id, htmlLink: event.htmlLink ?? "" };
+}
+
+/** `dateTime` para eventos com hora; `date` (dia inteiro) vira meia-noite local. */
+function parseGoogleEventTime(time: GoogleEventTime | undefined): Date | null {
+  if (!time) return null;
+  if (time.dateTime) return new Date(time.dateTime);
+  if (time.date) return new Date(`${time.date}T00:00:00`);
+  return null;
+}
+
+/**
+ * Lista os próximos eventos do calendário principal.
+ *
+ * `singleEvents: true` expande eventos recorrentes em ocorrências
+ * individuais — sem isto, uma reunião semanal apareceria como UMA linha
+ * com a data da primeira ocorrência, nunca as seguintes.
+ */
+export async function listUpcomingCalendarEvents(
+  accessToken: string,
+  { timeMin, maxResults = 50 }: { timeMin: Date; maxResults?: number },
+): Promise<RemoteCalendarEvent[]> {
+  const params = new URLSearchParams({
+    timeMin: timeMin.toISOString(),
+    maxResults: String(maxResults),
+    singleEvents: "true",
+    orderBy: "startTime",
+  });
+
+  const response = await calendarFetch(
+    accessToken,
+    `/calendars/${CALENDAR_ID}/events?${params}`,
+    { method: "GET" },
+  );
+
+  const payload = (await response.json()) as { items?: GoogleEventPayload[] };
+  const items = payload.items ?? [];
+
+  return items.flatMap((item): RemoteCalendarEvent[] => {
+    // "cancelled" fica na resposta (para sincronização incremental, que não
+    // usamos) — mostrá-lo seria exibir uma reunião que já não existe.
+    if (!item.id || item.status === "cancelled") return [];
+    const startsAt = parseGoogleEventTime(item.start);
+    if (!startsAt) return [];
+    return [
+      {
+        id: item.id,
+        title: item.summary ?? "(sem título)",
+        startsAt,
+        endsAt: parseGoogleEventTime(item.end),
+        location: item.location ?? null,
+        htmlLink: item.htmlLink ?? "",
+      },
+    ];
+  });
 }
 
 /** Apaga um evento. Um evento já apagado no Google não é erro para o utilizador. */

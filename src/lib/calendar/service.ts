@@ -18,7 +18,12 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { calendarEvents } from "@/lib/db/schema";
 import { CalendarError } from "@/lib/google/calendar-errors";
-import { deleteCalendarEventById, insertCalendarEvent } from "@/lib/google/calendar-client";
+import {
+  deleteCalendarEventById,
+  insertCalendarEvent,
+  listUpcomingCalendarEvents,
+  type RemoteCalendarEvent,
+} from "@/lib/google/calendar-client";
 import { getValidCalendarAccessToken, hasCalendarLinked } from "@/lib/google/tokens";
 
 export interface CreateCalendarEventInput {
@@ -98,6 +103,70 @@ export async function createCalendarEventForUser(
       console.error("[calendar] erro não mapeado ao criar evento:", error);
     }
     return { id: row.id, googleHtmlLink: null, googleError: message };
+  }
+}
+
+export interface GoogleOnlyEventsResult {
+  events: RemoteCalendarEvent[];
+  /** PT-PT quando a leitura falha — a UI mostra os locais na mesma. */
+  error: string | null;
+}
+
+/**
+ * Lê os próximos eventos do Google Calendar que NÃO foram criados pelo
+ * Nuvoly — para não duplicar na lista o que já aparece como evento local.
+ *
+ * `excludeGoogleEventIds` vem de quem chama (os `googleEventId` já
+ * guardados localmente) em vez de esta função ir à base de dados: assim o
+ * `/app/calendar` só faz uma leitura de `calendar_event`, e esta função fica
+ * livre de decidir sozinha o que é "duplicado" sem depender de outra tabela.
+ */
+export async function listGoogleOnlyEventsForUser(
+  userId: string,
+  excludeGoogleEventIds: ReadonlySet<string>,
+): Promise<GoogleOnlyEventsResult> {
+  if (!(await hasCalendarLinked(userId))) return { events: [], error: null };
+
+  try {
+    const accessToken = await getValidCalendarAccessToken(userId);
+    const remote = await listUpcomingCalendarEvents(accessToken, {
+      timeMin: new Date(),
+      maxResults: 50,
+    });
+    return {
+      events: remote.filter((event) => !excludeGoogleEventIds.has(event.id)),
+      error: null,
+    };
+  } catch (error) {
+    const message =
+      error instanceof CalendarError
+        ? error.userMessage
+        : "Não foi possível ler o Google Calendar agora.";
+    if (!(error instanceof CalendarError)) {
+      console.error("[calendar] erro não mapeado ao ler eventos:", error);
+    }
+    return { events: [], error: message };
+  }
+}
+
+/** Apaga diretamente um evento que só existe no Google (sem linha local). */
+export async function deleteGoogleOnlyEventForUser(
+  userId: string,
+  googleEventId: string,
+): Promise<{ error: string | null }> {
+  try {
+    const accessToken = await getValidCalendarAccessToken(userId);
+    await deleteCalendarEventById(accessToken, googleEventId);
+    return { error: null };
+  } catch (error) {
+    const message =
+      error instanceof CalendarError
+        ? error.userMessage
+        : "Não foi possível remover o evento no Google Calendar.";
+    if (!(error instanceof CalendarError)) {
+      console.error("[calendar] erro não mapeado ao apagar evento remoto:", error);
+    }
+    return { error: message };
   }
 }
 

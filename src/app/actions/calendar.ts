@@ -10,9 +10,12 @@
 import { revalidatePath } from "next/cache";
 import { and, eq } from "drizzle-orm";
 
+import { z } from "zod";
+
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { accounts } from "@/lib/db/schema";
+import { deleteGoogleOnlyEventForUser } from "@/lib/calendar/service";
 import { revokeGoogleToken } from "@/lib/google/calendar-oauth";
 import { CALENDAR_PROVIDER } from "@/lib/google/tokens";
 
@@ -41,4 +44,18 @@ export async function disconnectCalendar(): Promise<void> {
   // app. As referências locais é que deixam de fazer sentido manter.
   revalidatePath("/app/settings");
   revalidatePath("/app/calendar");
+}
+
+/**
+ * Apaga um evento que existe SÓ no Google (não foi criado pelo Nuvoly, não
+ * tem linha em `calendar_event`) diretamente pelo id da API. `deleteCalendarEvent`
+ * em `actions/agent.ts` continua a ser para eventos com linha local.
+ */
+export async function deleteRemoteCalendarEvent(googleEventId: string): Promise<{ error: string | null }> {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Não autenticado.");
+
+  const result = await deleteGoogleOnlyEventForUser(session.user.id, z.string().min(1).parse(googleEventId));
+  revalidatePath("/app/calendar");
+  return result;
 }
