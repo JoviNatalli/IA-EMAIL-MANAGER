@@ -40,7 +40,11 @@ export function GmailConnectionCard({
   const [syncState, syncAction, isSyncPending] = useActionState(async (_: GmailSyncActionState) => {
     const result = await triggerGmailSync();
     if (result.status === "success") {
-      toast.success(`Sincronização concluída — ${result.threadsSynced} conversas.`);
+      const label =
+        result.mode === "incremental"
+          ? `${result.threadsSynced} conversa(s) atualizada(s)`
+          : `${result.threadsSynced} conversas`;
+      toast.success(`Sincronização concluída — ${label}.`);
     } else if (result.status === "error") {
       toast.error(result.message);
     }

@@ -221,6 +221,97 @@ export async function listUpcomingCalendarEvents(
   });
 }
 
+export interface CalendarChangeEvent {
+  id: string;
+  /** `true` = o evento foi apagado (ou a ocorrência cancelada) no Google. */
+  cancelled: boolean;
+  title: string | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  location: string | null;
+}
+
+export interface CalendarChangesResult {
+  events: CalendarChangeEvent[];
+  /** Ponto de partida para a PRÓXIMA chamada de reconciliação. */
+  nextSyncToken: string;
+}
+
+/**
+ * Lê o que mudou no calendário desde `syncToken` — ou, sem token, faz a
+ * primeira leitura completa só para estabelecer o ponto de partida
+ * (spec §21, reconciliação).
+ *
+ * Um `syncToken` não pode ser combinado com `timeMin`/`timeMax`/`orderBy` —
+ * a API rejeita o pedido — por isso esta função nunca aceita esses filtros;
+ * é uma leitura de MUDANÇAS, não de "próximos eventos" (isso é
+ * `listUpcomingCalendarEvents`).
+ *
+ * Um `syncToken` expirado (a API não documenta por quanto tempo fica válido)
+ * responde **410 Gone**; devolvemos `{ expired: true }` para o chamador
+ * recomeçar com um novo baseline, tal como o `historyId` do Gmail.
+ */
+export async function listCalendarChanges(
+  accessToken: string,
+  syncToken?: string,
+): Promise<CalendarChangesResult | { expired: true }> {
+  const events: CalendarChangeEvent[] = [];
+  let pageToken: string | undefined;
+  let nextSyncToken: string | undefined;
+
+  do {
+    const params = new URLSearchParams({ singleEvents: "true", maxResults: "250" });
+    if (syncToken) params.set("syncToken", syncToken);
+    if (pageToken) params.set("pageToken", pageToken);
+
+    let response: Response;
+    try {
+      response = await fetch(`${API_BASE}/calendars/${CALENDAR_ID}/events?${params}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+    } catch (cause) {
+      throw new CalendarError("Falha de rede a ler alterações do Google Calendar.", {
+        userMessage: "Não foi possível contactar o Google Calendar. Verifique a ligação e tente novamente.",
+        cause,
+      });
+    }
+
+    if (response.status === 410) return { expired: true };
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => ({}))) as CalendarApiError;
+      throw mapCalendarError(response.status, payload);
+    }
+
+    const payload = (await response.json()) as {
+      items?: GoogleEventPayload[];
+      nextPageToken?: string;
+      nextSyncToken?: string;
+    };
+
+    for (const item of payload.items ?? []) {
+      if (!item.id) continue;
+      events.push({
+        id: item.id,
+        cancelled: item.status === "cancelled",
+        title: item.summary ?? null,
+        startsAt: parseGoogleEventTime(item.start),
+        endsAt: parseGoogleEventTime(item.end),
+        location: item.location ?? null,
+      });
+    }
+    if (payload.nextSyncToken) nextSyncToken = payload.nextSyncToken;
+    pageToken = payload.nextPageToken;
+  } while (pageToken);
+
+  if (!nextSyncToken) {
+    throw new CalendarError("Google Calendar não devolveu nextSyncToken.", {
+      userMessage: "Não foi possível confirmar o estado do Google Calendar.",
+    });
+  }
+
+  return { events, nextSyncToken };
+}
+
 /** Apaga um evento. Um evento já apagado no Google não é erro para o utilizador. */
 export async function deleteCalendarEventById(accessToken: string, eventId: string): Promise<void> {
   try {

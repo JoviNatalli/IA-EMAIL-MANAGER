@@ -16,15 +16,18 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
-import { calendarEvents } from "@/lib/db/schema";
+import { calendarEvents, calendarSync } from "@/lib/db/schema";
 import { CalendarError } from "@/lib/google/calendar-errors";
 import {
   deleteCalendarEventById,
   insertCalendarEvent,
+  listCalendarChanges,
   listUpcomingCalendarEvents,
+  type CalendarChangeEvent,
   type RemoteCalendarEvent,
 } from "@/lib/google/calendar-client";
 import { getValidCalendarAccessToken, hasCalendarLinked } from "@/lib/google/tokens";
+import { getUserTimeZone } from "@/lib/users/preferences";
 
 export interface CreateCalendarEventInput {
   title: string;
@@ -45,13 +48,14 @@ export interface CreateCalendarEventResult {
 /**
  * Fuso usado ao escrever no Google.
  *
- * É o do SERVIDOR, não o do utilizador: a app não guarda o fuso de ninguém.
- * Não desloca eventos (as datas vão como instantes ISO, que são absolutos),
- * só decide em que fuso o Google os mostra. Fica anotado como limitação
- * conhecida em vez de fingir que é a preferência do utilizador.
+ * Preferido: o do UTILIZADOR (`TimeZoneSync` reporta-o do browser para
+ * `user_preference.time_zone`, Fase 6). Sem ele — sessão nova, ainda não
+ * reportou — cai no fuso do servidor. Não desloca eventos (as datas vão
+ * como instantes ISO, absolutos), só decide em que fuso o Google os mostra.
  */
-function serverTimeZone(): string {
-  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+async function displayTimeZone(userId: string): Promise<string> {
+  const stored = await getUserTimeZone(userId);
+  return stored ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "UTC";
 }
 
 export async function createCalendarEventForUser(
@@ -85,7 +89,7 @@ export async function createCalendarEventForUser(
         location: input.location,
         sourceNote: "Criado a partir do Nuvoly.",
       },
-      serverTimeZone(),
+      await displayTimeZone(userId),
     );
 
     await db
@@ -167,6 +171,107 @@ export async function deleteGoogleOnlyEventForUser(
       console.error("[calendar] erro não mapeado ao apagar evento remoto:", error);
     }
     return { error: message };
+  }
+}
+
+/** Só os campos que a mudança do Google realmente traz — nunca apaga um título com `null`. */
+export function buildEventPatch(
+  change: Pick<CalendarChangeEvent, "title" | "startsAt" | "endsAt" | "location">,
+): Partial<{ title: string; startsAt: Date; endsAt: Date | null; location: string | null }> {
+  const patch: ReturnType<typeof buildEventPatch> = {};
+  if (change.title) patch.title = change.title;
+  if (change.startsAt) {
+    patch.startsAt = change.startsAt;
+    patch.endsAt = change.endsAt;
+  }
+  patch.location = change.location;
+  return patch;
+}
+
+export interface ReconcileResult {
+  /** Eventos locais atualizados para bater certo com o Google. */
+  updated: number;
+  /** Eventos locais removidos porque foram apagados/cancelados no Google. */
+  removed: number;
+  error: string | null;
+}
+
+/**
+ * Reconcilia os eventos que o Nuvoly criou com o estado atual no Google
+ * (spec §21) — editar ou apagar um evento do lado do Google, sem passar
+ * pela app, deixava a linha local desatualizada até alguém mexer nos dois
+ * lados à mão.
+ *
+ * Usa `syncToken` (guardado em `calendar_sync`, mesmo padrão do `historyId`
+ * do Gmail): só lê o que mudou, não o calendário inteiro. Eventos que não
+ * são nossos (sem `googleEventId` correspondente) são ignorados aqui — esses
+ * aparecem em `/app/calendar` pela leitura "só no Google", que não precisa
+ * de reconciliação porque não tem estado local para divergir.
+ */
+export async function reconcileCalendarForUser(userId: string): Promise<ReconcileResult> {
+  if (!(await hasCalendarLinked(userId))) return { updated: 0, removed: 0, error: null };
+
+  const [state] = await db.select().from(calendarSync).where(eq(calendarSync.userId, userId)).limit(1);
+
+  try {
+    const accessToken = await getValidCalendarAccessToken(userId);
+    let changes = await listCalendarChanges(accessToken, state?.syncToken ?? undefined);
+
+    if ("expired" in changes) {
+      // syncToken fora de validade (a API não documenta por quanto tempo
+      // fica bom) — recomeça com um novo baseline, tal como o historyId do
+      // Gmail quando sai da janela de retenção.
+      changes = await listCalendarChanges(accessToken, undefined);
+      if ("expired" in changes) {
+        throw new CalendarError("Google Calendar devolveu 410 mesmo sem syncToken.", {
+          userMessage: "Não foi possível confirmar o estado do Google Calendar agora.",
+        });
+      }
+    }
+
+    let updated = 0;
+    let removed = 0;
+
+    for (const change of changes.events) {
+      const [local] = await db
+        .select({ id: calendarEvents.id })
+        .from(calendarEvents)
+        .where(and(eq(calendarEvents.userId, userId), eq(calendarEvents.googleEventId, change.id)))
+        .limit(1);
+      if (!local) continue;
+
+      if (change.cancelled) {
+        await db.delete(calendarEvents).where(eq(calendarEvents.id, local.id));
+        removed += 1;
+        continue;
+      }
+
+      await db.update(calendarEvents).set(buildEventPatch(change)).where(eq(calendarEvents.id, local.id));
+      updated += 1;
+    }
+
+    await db
+      .insert(calendarSync)
+      .values({ userId, syncToken: changes.nextSyncToken, lastSyncedAt: new Date() })
+      .onConflictDoUpdate({
+        target: calendarSync.userId,
+        set: { syncToken: changes.nextSyncToken, lastSyncedAt: new Date(), lastError: null, updatedAt: new Date() },
+      });
+
+    return { updated, removed, error: null };
+  } catch (error) {
+    const message =
+      error instanceof CalendarError
+        ? error.userMessage
+        : "Não foi possível reconciliar o Google Calendar agora.";
+    if (!(error instanceof CalendarError)) {
+      console.error("[calendar] erro não mapeado na reconciliação:", error);
+    }
+    await db
+      .insert(calendarSync)
+      .values({ userId, lastError: message })
+      .onConflictDoUpdate({ target: calendarSync.userId, set: { lastError: message, updatedAt: new Date() } });
+    return { updated: 0, removed: 0, error: message };
   }
 }
 

@@ -4,7 +4,7 @@ import { Calendar } from "lucide-react";
 import { auth } from "@/auth";
 import { EmptyState } from "@/components/shared/empty-state";
 import { CalendarList } from "@/components/calendar/calendar-list";
-import { listGoogleOnlyEventsForUser } from "@/lib/calendar/service";
+import { listGoogleOnlyEventsForUser, reconcileCalendarForUser } from "@/lib/calendar/service";
 import { listCalendarEvents } from "@/lib/emails/productivity-queries";
 import { hasCalendarLinked } from "@/lib/google/tokens";
 
@@ -12,10 +12,17 @@ export default async function CalendarPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const [events, calendarConnected] = await Promise.all([
-    listCalendarEvents(session.user.id),
-    hasCalendarLinked(session.user.id),
-  ]);
+  const calendarConnected = await hasCalendarLinked(session.user.id);
+
+  // Reconcilia ANTES de ler os eventos locais: se algo foi editado ou
+  // apagado do lado do Google entretanto, é isso que a lista abaixo tem de
+  // mostrar, não o que ficou gravado da última vez que o Nuvoly escreveu.
+  // Uma falha aqui não impede a página de aparecer — só fica por atualizar.
+  const reconcileError = calendarConnected
+    ? (await reconcileCalendarForUser(session.user.id)).error
+    : null;
+
+  const events = await listCalendarEvents(session.user.id);
 
   // Só lê o Google quando há ligação — sem isto seria uma chamada à API só
   // para descobrir o que já se sabia (não está ligado). Os eventos já
@@ -24,9 +31,11 @@ export default async function CalendarPage() {
   const localGoogleEventIds = new Set(
     events.flatMap((e) => (e.googleEventId ? [e.googleEventId] : [])),
   );
-  const { events: remoteEvents, error: remoteError } = calendarConnected
+  const { events: remoteEvents, error: remoteReadError } = calendarConnected
     ? await listGoogleOnlyEventsForUser(session.user.id, localGoogleEventIds)
     : { events: [], error: null };
+
+  const remoteError = reconcileError ?? remoteReadError;
 
   if (events.length === 0 && remoteEvents.length === 0) {
     return (

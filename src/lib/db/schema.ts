@@ -200,6 +200,12 @@ export const userPreferences = pgTable("user_preference", {
   onboardingCompletedAt: timestamp("onboarding_completed_at", {
     mode: "date",
   }),
+  /**
+   * IANA (ex. "Europe/Lisbon"), capturada no browser (Fase 6). `null` até o
+   * cliente a reportar uma vez — nesse intervalo o Calendar continua a
+   * escrever no fuso do SERVIDOR, nunca inventamos um fuso do utilizador.
+   */
+  timeZone: text("time_zone"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
@@ -596,6 +602,25 @@ export const threadLabelsRelations = relations(threadLabels, ({ one }) => ({
 
 export const gmailSyncRelations = relations(gmailSync, ({ one }) => ({
   user: one(users, { fields: [gmailSync.userId], references: [users.id] }),
+}));
+
+/**
+ * Estado da reconciliação com o Google Calendar (Fase 6, §21) — mesmo
+ * padrão do `gmailSync`: um `syncToken` da Calendar API em vez de refazer a
+ * pergunta "o que mudou desde a última vez" a reler tudo. `null` até à
+ * primeira leitura bem-sucedida (uma resposta com `nextSyncToken` completa).
+ */
+export const calendarSync = pgTable("calendar_sync", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  syncToken: text("sync_token"),
+  lastSyncedAt: timestamp("last_synced_at", { mode: "date" }),
+  lastError: text("last_error"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+export const calendarSyncRelations = relations(calendarSync, ({ one }) => ({
+  user: one(users, { fields: [calendarSync.userId], references: [users.id] }),
 }));
 
 export const accountsRelations = relations(accounts, ({ one }) => ({

@@ -6,7 +6,14 @@ import { indexPendingEmails } from "@/lib/ai/indexing";
 import { emails, gmailSync, labels, threadLabels, threads } from "@/lib/db/schema";
 import type { LabelColorEnum } from "@/lib/emails/types";
 import { GmailError } from "./errors";
-import { getProfile, getThread, listLabels, listThreadIds, type GmailLabel } from "./gmail-client";
+import {
+  getProfile,
+  getThread,
+  listHistorySince,
+  listLabels,
+  listThreadIds,
+  type GmailLabel,
+} from "./gmail-client";
 import { getValidGoogleAccessToken } from "./tokens";
 import { mapGmailThread, type MappedGmailThread } from "./mapper";
 
@@ -166,13 +173,23 @@ export async function upsertMappedThread(
   return threadId;
 }
 
-/** Refresca uma única thread a partir do Gmail — chamado depois de qualquer ação que mude o estado real (enviar, responder, estrela, arquivar, labels). */
-export async function syncSingleGmailThread(userId: string, gmailThreadId: string): Promise<string> {
-  const accessToken = await getValidGoogleAccessToken(userId);
-  const [thread, labelMap] = await Promise.all([
-    getThread(accessToken, gmailThreadId),
-    importGmailLabels(userId, accessToken),
-  ]);
+/**
+ * Refresca uma única thread a partir do Gmail — chamado depois de qualquer
+ * ação que mude o estado real (enviar, responder, estrela, arquivar,
+ * labels) e, desde a Fase 6, pelo sync incremental.
+ *
+ * `context` deixa quem já tem `accessToken`/`labelMap` em mãos (o sync
+ * incremental, a percorrer dezenas de threads) reutilizá-los em vez de
+ * pedir um token novo e reimportar as labels a cada thread da lista.
+ */
+export async function syncSingleGmailThread(
+  userId: string,
+  gmailThreadId: string,
+  context?: { accessToken: string; labelMap: Map<string, string> },
+): Promise<string> {
+  const accessToken = context?.accessToken ?? (await getValidGoogleAccessToken(userId));
+  const labelMap = context?.labelMap ?? (await importGmailLabels(userId, accessToken));
+  const thread = await getThread(accessToken, gmailThreadId);
   const mapped = mapGmailThread(thread);
   if (!mapped) {
     throw new GmailError(`Thread ${gmailThreadId} sem mensagens.`, {
@@ -180,6 +197,13 @@ export async function syncSingleGmailThread(userId: string, gmailThreadId: strin
     });
   }
   return upsertMappedThread(userId, mapped, labelMap);
+}
+
+/** A thread deixou de existir no Gmail (apagada de vez fora da app) — a linha local também deixa de fazer sentido. */
+async function deleteLocalGmailThread(userId: string, gmailThreadId: string): Promise<void> {
+  await db
+    .delete(threads)
+    .where(and(eq(threads.userId, userId), eq(threads.gmailThreadId, gmailThreadId)));
 }
 
 export interface SyncResult {
@@ -233,4 +257,87 @@ export async function runInitialGmailSync(userId: string): Promise<SyncResult> {
     await setSyncStatus(userId, { status: "error", lastError: userMessage });
     throw error;
   }
+}
+
+export interface GmailSyncResult extends SyncResult {
+  mode: "full" | "incremental";
+}
+
+/**
+ * Sincronização incremental (Fase 6) — lê só o que mudou desde o
+ * `historyId` guardado, em vez de reimportar sempre as últimas
+ * `INITIAL_SYNC_THREAD_LIMIT` threads.
+ *
+ * Assume que já existe um `historyId` (chamador decide o `mode`). Cada
+ * thread tocada é relida por inteiro — a History API diz O QUE mudou, não
+ * o estado atual, e ler o estado atual de novo é a única forma de não
+ * divergir do Gmail em caso de vários eventos entre sincronizações.
+ */
+async function runIncrementalGmailSync(
+  userId: string,
+  historyId: string,
+): Promise<SyncResult & { fellBackToFull: boolean }> {
+  await setSyncStatus(userId, { status: "syncing" });
+
+  try {
+    const accessToken = await getValidGoogleAccessToken(userId);
+    const history = await listHistorySince(accessToken, historyId);
+
+    if ("expired" in history) {
+      // Fora da janela de retenção do histórico do Gmail (~7 dias) — a
+      // única correção possível é recomeçar do zero; não é um erro do
+      // utilizador nem motivo para a UI mostrar falha.
+      const result = await runInitialGmailSync(userId);
+      return { ...result, fellBackToFull: true };
+    }
+
+    const labelMap = await importGmailLabels(userId, accessToken);
+    let synced = 0;
+
+    for (const gmailThreadId of history.threadIds) {
+      try {
+        await syncSingleGmailThread(userId, gmailThreadId, { accessToken, labelMap });
+        synced += 1;
+      } catch (error) {
+        if (error instanceof GmailError && error.message.includes(" 404:")) {
+          await deleteLocalGmailThread(userId, gmailThreadId);
+          continue;
+        }
+        // Uma thread a falhar não pode abortar as restantes — fica por
+        // atualizar até à próxima sincronização em vez de travar tudo.
+        console.error(`[sync] falha ao atualizar a thread ${gmailThreadId} (sync incremental):`, error);
+      }
+    }
+
+    await db.update(gmailSync).set({ historyId: history.historyId }).where(eq(gmailSync.userId, userId));
+    await setSyncStatus(userId, { status: "idle", touchLastSyncedAt: true });
+
+    void indexPendingEmails(userId).catch((error) => {
+      console.error("[sync] indexação semântica falhou (será retomada na próxima pesquisa):", error);
+    });
+
+    return { threadsSynced: synced, fellBackToFull: false };
+  } catch (error) {
+    const userMessage =
+      error instanceof GmailError ? error.userMessage : "Não foi possível sincronizar o Gmail agora.";
+    await setSyncStatus(userId, { status: "error", lastError: userMessage });
+    throw error;
+  }
+}
+
+/**
+ * Ponto de entrada único do botão "Sincronizar agora": decide sozinho entre
+ * o sync completo (primeira vez, ou sem `historyId` guardado) e o
+ * incremental (já sincronizado antes).
+ */
+export async function runGmailSync(userId: string): Promise<GmailSyncResult> {
+  const [state] = await db.select().from(gmailSync).where(eq(gmailSync.userId, userId)).limit(1);
+
+  if (!state?.historyId) {
+    const result = await runInitialGmailSync(userId);
+    return { ...result, mode: "full" };
+  }
+
+  const { fellBackToFull, ...result } = await runIncrementalGmailSync(userId, state.historyId);
+  return { ...result, mode: fellBackToFull ? "full" : "incremental" };
 }

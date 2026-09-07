@@ -7,6 +7,8 @@ import { CommandPalette } from "@/components/layout/command-palette";
 import { CommandPaletteProvider } from "@/components/layout/command-palette-provider";
 import { ComposeDialog } from "@/components/mail/compose-dialog";
 import { ComposeProvider } from "@/components/mail/compose-provider";
+import { TimeZoneSync } from "@/components/layout/timezone-sync";
+import { getUserTimeZone } from "@/lib/users/preferences";
 import { getFolderCounts } from "@/lib/emails/queries";
 
 export default async function AppLayout({ children }: LayoutProps<"/app">) {
@@ -19,10 +21,14 @@ export default async function AppLayout({ children }: LayoutProps<"/app">) {
     redirect("/login");
   }
 
-  const folderCounts = await getFolderCounts(session.user.id);
+  const [folderCounts, storedTimeZone] = await Promise.all([
+    getFolderCounts(session.user.id),
+    getUserTimeZone(session.user.id),
+  ]);
 
   return (
     <ComposeProvider>
+      <TimeZoneSync storedTimeZone={storedTimeZone} />
       <CommandPaletteProvider>
         <div className="flex h-svh overflow-hidden bg-background">
           <AppSidebar counts={folderCounts} />

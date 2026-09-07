@@ -152,6 +152,17 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
   `/app/calendar` também LÊ os próximos eventos que já existiam no Google
   (não só os criados pelo Nuvoly), mostrados lado a lado com os locais e
   marcados como "só no Google" — sem duplicar os que a app já tem
+- **Reconciliação do Calendar via `syncToken`**: antes de mostrar
+  `/app/calendar`, lê o que mudou no Google desde a última vez e
+  atualiza/remove os eventos locais editados ou apagados do lado de lá —
+  sem isto uma edição feita direto no Google nunca se refletia na app
+- **Sincronização incremental do Gmail via `historyId`**: "Sincronizar
+  agora" passou a ler só o que mudou (`users.history.list`) a partir da
+  segunda sincronização, em vez de reimportar sempre as últimas 30
+  conversas; cai automaticamente para um sync completo se o histórico
+  expirar (janela de ~7 dias do Gmail)
+- **Fuso horário do utilizador**: capturado no browser e guardado em
+  `user_preference`, usado pelo Calendar em vez do fuso do servidor
 
 ## Tech stack
 
@@ -379,9 +390,12 @@ Ver [`.env.example`](./.env.example).
 - **Outlook/Microsoft Graph**: arquitetura de acesso a email já pensada
   para ficar abstraída por trás de um `EmailProvider` — hoje só o Gmail está
   implementado
-- **Sincronização incremental**: já guardamos o `historyId` da Gmail History
-  API a cada sync, mas ainda não o usamos — hoje "Sincronizar agora" volta a
-  importar as últimas 30 conversas em vez de só as mudanças
+- ~~**Sincronização incremental**~~ ✅ (Fase 6) — "Sincronizar agora" usa a
+  Gmail History API (`historyId` já era guardado desde a Fase 3, só não era
+  usado): a partir da segunda sincronização só relê as threads que mudaram,
+  em vez de reimportar sempre as últimas 30. Se o histórico sair da janela
+  de retenção do Gmail (~7 dias sem sincronizar), recomeça sozinho com um
+  sync completo — sem erro visível, é o comportamento correto
 - **Anexos reais**: a Gmail API devolve anexos nas mensagens, mas ainda não
   são transferidos nem guardados (`attachments` fica vazio para threads
   Gmail) — a UI nunca finge tê-los
@@ -402,11 +416,16 @@ Ver [`.env.example`](./.env.example).
   do §28 ficam por fazer
 - **Lembretes não notificam**: `createReminder` grava o lembrete, mas ainda
   não há nada que dispare notificações
-- **Google Calendar — sem reconciliação de alterações**: cria, lê e apaga
-  eventos, mas não deteta quando um evento criado pelo Nuvoly é editado ou
-  apagado do lado do Google — a linha local fica desatualizada até apagar
-  dos dois lados manualmente. O fuso usado ao escrever é o do servidor (a
-  app não guarda o fuso do utilizador)
+- ~~**Google Calendar — reconciliação de alterações**~~ ✅ — usa `syncToken`
+  da Calendar API (mesmo padrão do `historyId` do Gmail): antes de mostrar
+  `/app/calendar`, lê o que mudou desde a última vez e atualiza/remove os
+  eventos locais que foram editados/apagados do lado do Google. Só cobre
+  eventos que o Nuvoly criou (têm `googleEventId`) — eventos "só no Google"
+  não têm linha local para divergir
+- ~~**Fuso horário do utilizador**~~ ✅ — capturado no browser
+  (`Intl.DateTimeFormat().resolvedOptions().timeZone`) e guardado em
+  `user_preference.time_zone`; o Calendar passa a escrever nesse fuso em
+  vez do fuso do servidor assim que a sessão o reporta uma vez
 - **Reindexação semântica**: um email cujo corpo mude depois de indexado
   mantém o embedding antigo. Na prática não acontece (o Gmail não reescreve
   mensagens), mas trocar o modelo de embeddings obriga a limpar a tabela

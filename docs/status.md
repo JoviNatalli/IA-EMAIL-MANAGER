@@ -764,6 +764,73 @@ lados. Implementar isso a sério pede sincronização incremental (`syncToken`
 da Calendar API), que é o género de trabalho da "Fase 8 — polish" e não
 cabia neste pedido pontual.
 
+### Atualização 2026-09-07 (2) — os "pontos de atenção" fechados
+
+O utilizador pediu para fechar quatro dos pontos em aberto listados acima.
+Três ficaram feitos; um foi decisão de manter como está:
+
+- **`.claude/launch.json` versionado** (`git add .claude/`) — só tem a
+  config do dev server para o browser preview, sem segredos; equivalente ao
+  `.vscode/launch.json`, útil para quem continuar o projeto.
+- **Fuso horário do utilizador**: coluna `user_preference.time_zone`
+  (migração `drizzle/0006_narrow_chameleon.sql`), capturada uma vez por
+  sessão pelo componente `TimeZoneSync` no layout da app
+  (`Intl.DateTimeFormat().resolvedOptions().timeZone`) e gravada via
+  `setUserTimeZone`. O Calendar (`displayTimeZone` em
+  `src/lib/calendar/service.ts`) usa-o em vez do fuso do servidor assim que
+  existe; sem ele (sessão nova) continua a cair no fuso do servidor —
+  nunca inventa um fuso a partir do IP ou de qualquer coisa do lado do
+  servidor. Testado: confirmado gravado como `Europe/Lisbon` na BD depois
+  de uma visita à app.
+- **Sincronização incremental do Gmail**: `listHistorySince` em
+  `gmail-client.ts` (`users.history.list`, paginado, tipos
+  `messageAdded`/`messageDeleted`/`labelAdded`/`labelRemoved`). `runGmailSync`
+  é agora o único ponto de entrada do botão "Sincronizar agora" — decide
+  sozinho entre completo (primeira vez) e incremental (já tem `historyId`);
+  cai para completo também se a API responder 404 (histórico fora da janela
+  de retenção, ~7 dias). Uma thread cujo `getThread` responda 404 no meio do
+  incremental é apagada localmente (deixou de existir no Gmail) em vez de
+  abortar o sync inteiro. `syncSingleGmailThread` passou a aceitar um
+  `accessToken`/`labelMap` já obtidos, para não pedir um token novo e
+  reimportar labels a cada thread da lista de mudanças.
+- **Reconciliação do Google Calendar**: tabela nova `calendar_sync`
+  (mesmo padrão do `gmail_sync`, um `syncToken` da Calendar API em vez de
+  `historyId`). `reconcileCalendarForUser` corre antes de `/app/calendar`
+  mostrar a lista: lê o que mudou desde o último `syncToken`
+  (`listCalendarChanges`, que nunca combina `syncToken` com
+  `timeMin`/`timeMax` — a API rejeita isso), atualiza ou remove a linha
+  local de qualquer evento do Nuvoly (`googleEventId` correspondente) que
+  tenha sido editado/apagado do lado do Google. Um `syncToken` expirado
+  (410 Gone) refaz o baseline do zero, tal como o `historyId` do Gmail.
+  Eventos "só no Google" (sem linha local) ficam de fora — não têm estado
+  para divergir, e continuam a aparecer pela leitura já existente
+  (`listGoogleOnlyEventsForUser`).
+
+**Bug real encontrado a verificar**: depois de aplicar a migração
+(`pnpm db:migrate`, coluna e tabela confirmadas a existir via query direta),
+a app continuava a dar 500 em `/app/calendar` com
+`Failed query: select "time_zone" from "user_preference"...`. Não era a
+migração — era um `next-server` (PID visto via `lsof -i :3000`) a correr há
+17h, de uma sessão de terminal anterior, com uma ligação à base de dados
+aberta antes da coluna existir. Reiniciar o dev server (autorizado pelo
+utilizador) resolveu — o PGlite local não invalida automaticamente esse
+tipo de estado em conexões já abertas. Fica registado porque é o tipo de
+falha que parece um bug de migração e não é: **sempre que um `ALTER TABLE`
+correr com o dev server já a correr há muito tempo, reiniciar o dev server
+a seguir.**
+
+Testes: `pnpm typecheck`, `pnpm lint`, `pnpm test:unit` (64/64, 4 novos em
+`src/lib/calendar/__tests__/service.test.ts` para `buildEventPatch` — a
+única parte pura da reconciliação, o resto exige rede real). Verificado no
+browser numa aba nova (sem cache de RSC de antes do restart): `/app/inbox`,
+`/app/calendar`, `/app/settings` sem erros de consola.
+
+**Não verificado**: a reconciliação do Calendar e o sync incremental do
+Gmail pedem uma segunda mudança feita DIRETAMENTE no Google (editar/apagar
+um evento no Google Calendar, ou receber um email novo) para se confirmar
+ponta a ponta — isso só o utilizador consegue fazer com a conta real
+ligada.
+
 ## Notas operacionais que ainda importam
 
 - **PAT do GitHub por rodar**: um Personal Access Token foi partilhado em

@@ -13,7 +13,7 @@ import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { accounts, gmailSync } from "@/lib/db/schema";
 import { GmailError } from "@/lib/google/errors";
-import { runInitialGmailSync } from "@/lib/google/sync";
+import { runGmailSync } from "@/lib/google/sync";
 
 async function requireUserId(): Promise<string> {
   const session = await auth();
@@ -23,16 +23,23 @@ async function requireUserId(): Promise<string> {
 
 export type GmailSyncActionState =
   | { status: "idle" }
-  | { status: "success"; threadsSynced: number }
+  | { status: "success"; threadsSynced: number; mode: "full" | "incremental" }
   | { status: "error"; message: string };
 
+/**
+ * Decide sozinho entre sync completo e incremental (Fase 6, §3 do README
+ * "Future Improvements" original da Fase 3 — `historyId` já era guardado
+ * desde então, só não era usado). Primeira sincronização de uma conta, ou
+ * histórico fora da janela de retenção do Gmail: completo. Caso contrário,
+ * só o que mudou.
+ */
 export async function triggerGmailSync(): Promise<GmailSyncActionState> {
   const userId = await requireUserId();
   try {
-    const result = await runInitialGmailSync(userId);
+    const result = await runGmailSync(userId);
     revalidatePath("/app", "layout");
     revalidatePath("/app/settings");
-    return { status: "success", threadsSynced: result.threadsSynced };
+    return { status: "success", threadsSynced: result.threadsSynced, mode: result.mode };
   } catch (error) {
     return {
       status: "error",

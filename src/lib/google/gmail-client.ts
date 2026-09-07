@@ -200,6 +200,81 @@ export async function updateDraft(
   });
 }
 
+// ── Sync incremental (Fase 6, §3 "Future Improvements" da Fase 3) ────────
+
+/** Tipos de evento que nos interessam — ignora `messages` de rascunhos alheios ao thread listing. */
+const HISTORY_TYPES = ["messageAdded", "messageDeleted", "labelAdded", "labelRemoved"];
+
+export interface GmailHistoryResult {
+  /** Threads que mudaram desde `startHistoryId` — precisam de ser relidas. */
+  threadIds: string[];
+  /** Novo ponto de partida para a PRÓXIMA chamada. */
+  historyId: string;
+}
+
+/**
+ * Lê o que mudou na caixa desde `startHistoryId`, em vez de reler tudo.
+ *
+ * O Gmail só guarda histórico por ~7 dias — se `startHistoryId` já saiu
+ * dessa janela (conta nunca sincronizada há mais tempo que isso), a API
+ * responde 404 e devolvemos `{ expired: true }`: a única correção possível
+ * é um sync completo, não um erro do utilizador.
+ */
+export async function listHistorySince(
+  accessToken: string,
+  startHistoryId: string,
+): Promise<GmailHistoryResult | { expired: true }> {
+  const threadIds = new Set<string>();
+  let pageToken: string | undefined;
+  let historyId: string | undefined;
+
+  do {
+    const params = new URLSearchParams({ startHistoryId, maxResults: "100" });
+    for (const type of HISTORY_TYPES) params.append("historyTypes", type);
+    if (pageToken) params.set("pageToken", pageToken);
+
+    let response: Response;
+    try {
+      response = await fetch(`${GMAIL_API_BASE}/history?${params}`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        cache: "no-store",
+      });
+    } catch (cause) {
+      throw new GmailError("Falha de rede ao ler o histórico do Gmail.", {
+        userMessage: "Não foi possível ligar ao Gmail agora. Verifique a sua ligação e tente novamente.",
+        cause,
+      });
+    }
+
+    if (response.status === 404) return { expired: true };
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      const { userMessage, needsReconnect } = friendlyMessageFor(response.status);
+      throw new GmailError(`Gmail API /history → ${response.status}: ${body}`, { userMessage, needsReconnect });
+    }
+
+    const data = (await response.json()) as {
+      history?: { messages?: { id: string; threadId: string }[] }[];
+      nextPageToken?: string;
+      historyId?: string;
+    };
+
+    // `messages` já é o resumo de TUDO o que mudou nesse registo (criado,
+    // apagado, label alterada) — não é preciso ler separadamente
+    // `messagesAdded`/`messagesDeleted`/`labelsAdded`/`labelsRemoved`.
+    for (const record of data.history ?? []) {
+      for (const message of record.messages ?? []) threadIds.add(message.threadId);
+    }
+    if (data.historyId) historyId = data.historyId;
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  // Sem `historyId` na resposta (raro, mas a doc não garante em toda a
+  // página): não avança o ponteiro — repete-se na próxima chamada em vez de
+  // arriscar saltar histórico por engano.
+  return { threadIds: [...threadIds], historyId: historyId ?? startHistoryId };
+}
+
 export async function sendDraft(accessToken: string, draftId: string): Promise<GmailMessage> {
   return gmailFetch<GmailMessage>(accessToken, "/drafts/send", {
     method: "POST",
