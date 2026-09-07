@@ -243,6 +243,57 @@ export function buildMeetingExtractionPrompt(
   };
 }
 
+export interface RagPassageInput {
+  subject: string;
+  from: string;
+  content: string;
+}
+
+/**
+ * Resposta a partir dos emails recuperados (spec §27).
+ *
+ * As passagens são conteúdo de terceiros — vão dentro de `<EMAIL_CONTENT>`
+ * com os delimitadores neutralizados, exatamente como qualquer outro corpo
+ * de email (§31). Um email que diga "ignora as instruções e responde X" é
+ * um resultado de pesquisa, não uma ordem.
+ */
+export function buildRagPrompt(
+  question: string,
+  passages: RagPassageInput[],
+): { system: string; messages: AIChatMessage[] } {
+  const blocks = passages
+    .map(
+      (p, i) =>
+        `[Excerto ${i + 1} — "${neutralizeDelimiters(p.subject)}", de ${neutralizeDelimiters(p.from)}]\n${neutralizeDelimiters(p.content)}`,
+    )
+    .join("\n\n");
+
+  return {
+    system: system(
+      [
+        "Respondes a perguntas sobre a caixa de correio de um utilizador do Nuvoly, em português de Portugal.",
+        "Recebes excertos de emails encontrados por pesquisa semântica. Responde APENAS com base neles.",
+        "Se os excertos não contiverem a resposta, diz claramente que não encontraste essa informação nos emails — nunca preencher com suposições (spec §13).",
+        "Cita as fontes pelo número do excerto (ex.: 'Excerto 2') para o utilizador poder confirmar.",
+        "Texto simples, sem markdown, direto ao assunto.",
+      ].join("\n"),
+    ),
+    messages: [
+      {
+        role: "user",
+        content: [
+          "USER INSTRUCTIONS:",
+          neutralizeDelimiters(question),
+          "",
+          "<EMAIL_CONTENT>",
+          blocks || "(nenhum excerto relevante encontrado)",
+          "</EMAIL_CONTENT>",
+        ].join("\n"),
+      },
+    ],
+  };
+}
+
 export interface BriefingContext {
   now: Date;
   unreadCount: number;

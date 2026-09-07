@@ -445,12 +445,19 @@ function ProposalCard({ payload }: { payload: AgentUiPayload }) {
   const [created, setCreated] = React.useState<Set<number>>(new Set());
   const [pendingIndex, setPendingIndex] = React.useState<number | null>(null);
 
-  async function create(index: number, run: () => Promise<void>, successMessage: string) {
+  async function create(
+    index: number,
+    run: () => Promise<void | { googleError?: string | null }>,
+    successMessage: string,
+  ) {
     setPendingIndex(index);
     try {
-      await run();
+      const result = await run();
       setCreated((prev) => new Set(prev).add(index));
-      toast.success(successMessage);
+      // O evento foi mesmo criado localmente; o Google é que recusou. Dizer
+      // "adicionado" e calar isso seria mentir sobre onde ele está (§13).
+      if (result?.googleError) toast.warning(result.googleError);
+      else toast.success(successMessage);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Não foi possível criar.");
     } finally {

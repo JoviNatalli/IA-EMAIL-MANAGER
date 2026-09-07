@@ -26,6 +26,7 @@ import { db } from "@/lib/db";
 import { emails, threads } from "@/lib/db/schema";
 import { getThread, listLabels, listThreads } from "@/lib/emails/queries";
 import { getCachedThreadSummary, summarizeThreadForAgent } from "@/lib/ai/thread-summary";
+import { semanticSearch } from "@/lib/search/semantic";
 import { ToolError, type AgentTool, type ToolContext } from "./types";
 
 const MAX_RESULTS = 15;
@@ -103,6 +104,33 @@ const searchEmails: AgentTool<{ query: string }> = {
   async execute(ctx, args) {
     const items = await listThreads(ctx.userId, { type: "search", query: args.query });
     return { output: formatThreadList(items, `Nenhuma conversa encontrada para "${args.query}".`) };
+  },
+};
+
+/**
+ * Pesquisa por significado (Fase 6, §24/§27).
+ *
+ * Existe além de `searchEmails` e não em vez dela: quando o utilizador
+ * conhece a palavra exata ("faturas da Vodafone"), o `ilike` é mais preciso
+ * e não gasta uma chamada de embeddings. Esta serve para o caso em que o
+ * §24 põe o dedo — descrever o assunto sem saber como o email o escreveu.
+ */
+const searchEmailsByMeaning: AgentTool<{ description: string }> = {
+  name: "searchEmailsByMeaning",
+  description:
+    "Pesquisa conversas por SIGNIFICADO, quando o utilizador descreve o assunto sem saber as palavras exatas do email (ex.: 'o cliente que reclamou do prazo'). Para palavras exatas usa antes searchEmails.",
+  schema: z.object({ description: z.string().min(3).max(300) }),
+  kind: "read",
+  confirmation: "never",
+  async execute(ctx, args) {
+    const { threads: found } = await semanticSearch(ctx.userId, args.description);
+    if (found.length === 0) {
+      return { output: `Nenhuma conversa relacionada com "${args.description}".` };
+    }
+    const lines = found.map(
+      (item) => `${formatThreadLine(item)} · proximidade ${Math.round(item.score * 100)}%`,
+    );
+    return { output: `${found.length} conversa(s) por significado:\n${lines.join("\n")}` };
   },
 };
 
@@ -459,6 +487,7 @@ const replyToThread: AgentTool<{ threadId: string; body: string }> = {
 
 export const emailTools = [
   searchEmails,
+  searchEmailsByMeaning,
   findEmailsBySender,
   findEmailsByDate,
   getThreadTool,

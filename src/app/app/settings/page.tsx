@@ -1,10 +1,12 @@
 import { redirect } from "next/navigation";
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, isNotNull } from "drizzle-orm";
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { accounts, gmailSync, threads } from "@/lib/db/schema";
+import { accounts, calendarEvents, gmailSync, threads } from "@/lib/db/schema";
+import { CALENDAR_PROVIDER } from "@/lib/google/tokens";
 import { AppearanceSection } from "@/components/settings/appearance-section";
+import { CalendarConnectionCard } from "@/components/settings/calendar-connection";
 import { GmailConnectionCard } from "@/components/settings/gmail-connection";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
@@ -45,6 +47,21 @@ export default async function SettingsPage() {
     .select({ gmailThreadCount: count() })
     .from(threads)
     .where(and(eq(threads.userId, userId), eq(threads.source, "gmail")));
+
+  const [calendarAccount] = await db
+    .select({ providerAccountId: accounts.providerAccountId })
+    .from(accounts)
+    .where(and(eq(accounts.userId, userId), eq(accounts.provider, CALENDAR_PROVIDER)));
+
+  const [{ eventCount }] = await db
+    .select({ eventCount: count() })
+    .from(calendarEvents)
+    .where(eq(calendarEvents.userId, userId));
+
+  const [{ syncedEventCount }] = await db
+    .select({ syncedEventCount: count() })
+    .from(calendarEvents)
+    .where(and(eq(calendarEvents.userId, userId), isNotNull(calendarEvents.googleEventId)));
 
   return (
     <div className="mx-auto w-full max-w-2xl px-6 py-10">
@@ -92,7 +109,7 @@ export default async function SettingsPage() {
           </p>
         </TabsContent>
 
-        <TabsContent value="connected" className="mt-6">
+        <TabsContent value="connected" className="mt-6 flex flex-col gap-4">
           <GmailConnectionCard
             connected={!!googleAccount}
             email={googleAccount ? email ?? null : null}
@@ -100,6 +117,11 @@ export default async function SettingsPage() {
             lastSyncedAt={syncState?.lastSyncedAt ?? null}
             lastError={syncState?.lastError ?? null}
             threadCount={gmailThreadCount}
+          />
+          <CalendarConnectionCard
+            connected={!!calendarAccount}
+            eventCount={eventCount}
+            syncedEventCount={syncedEventCount}
           />
         </TabsContent>
 

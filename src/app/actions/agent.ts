@@ -14,7 +14,11 @@ import { z } from "zod";
 
 import { auth } from "@/auth";
 import { db } from "@/lib/db";
-import { calendarEvents, tasks, threads } from "@/lib/db/schema";
+import { tasks, threads } from "@/lib/db/schema";
+import {
+  createCalendarEventForUser,
+  deleteCalendarEventForUser,
+} from "@/lib/calendar/service";
 import { executePendingAction, rejectPendingAction, type PendingActionResult } from "@/lib/ai/agent";
 import type { ToolContext } from "@/lib/ai/tools";
 
@@ -89,13 +93,14 @@ export async function createTaskFromProposal(input: z.infer<typeof taskProposalS
   revalidatePath("/app", "layout");
 }
 
-export async function createCalendarEventFromProposal(input: z.infer<typeof meetingProposalSchema>) {
+export async function createCalendarEventFromProposal(
+  input: z.infer<typeof meetingProposalSchema>,
+): Promise<{ googleHtmlLink: string | null; googleError: string | null }> {
   const ctx = await requireToolContext();
   const parsed = meetingProposalSchema.parse(input);
   const sourceThreadId = await resolveOwnThreadId(ctx.userId, parsed.sourceThreadId);
 
-  await db.insert(calendarEvents).values({
-    userId: ctx.userId,
+  const result = await createCalendarEventForUser(ctx.userId, {
     title: parsed.title,
     startsAt: new Date(parsed.startsAt),
     endsAt: parsed.endsAt ? new Date(parsed.endsAt) : null,
@@ -103,6 +108,7 @@ export async function createCalendarEventFromProposal(input: z.infer<typeof meet
     sourceThreadId,
   });
   revalidatePath("/app", "layout");
+  return { googleHtmlLink: result.googleHtmlLink, googleError: result.googleError };
 }
 
 // ── Tarefas e eventos: gestão manual ────────────────────────────────────
@@ -122,10 +128,9 @@ export async function deleteTask(taskId: string) {
   revalidatePath("/app", "layout");
 }
 
-export async function deleteCalendarEvent(eventId: string) {
+export async function deleteCalendarEvent(eventId: string): Promise<{ googleError: string | null }> {
   const ctx = await requireToolContext();
-  await db
-    .delete(calendarEvents)
-    .where(and(eq(calendarEvents.id, idSchema.parse(eventId)), eq(calendarEvents.userId, ctx.userId)));
+  const result = await deleteCalendarEventForUser(ctx.userId, idSchema.parse(eventId));
   revalidatePath("/app", "layout");
+  return result;
 }

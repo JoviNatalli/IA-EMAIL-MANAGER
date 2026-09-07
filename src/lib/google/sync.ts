@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/lib/db";
+import { indexPendingEmails } from "@/lib/ai/indexing";
 import { emails, gmailSync, labels, threadLabels, threads } from "@/lib/db/schema";
 import type { LabelColorEnum } from "@/lib/emails/types";
 import { GmailError } from "./errors";
@@ -214,6 +215,16 @@ export async function runInitialGmailSync(userId: string): Promise<SyncResult> {
       .set({ historyId: profile.historyId })
       .where(eq(gmailSync.userId, userId));
     await setSyncStatus(userId, { status: "idle", touchLastSyncedAt: true });
+
+    // Indexação para pesquisa semântica (Fase 6): deliberadamente DEPOIS de
+    // o sync estar dado como concluído e sem `await` a bloquear o resultado.
+    // Indexar 30 threads são vários segundos de chamadas de embeddings, e um
+    // sync que funcionou não pode parecer falhado — nem falhar de verdade —
+    // por causa de uma quota de embeddings esgotada. A pesquisa semântica
+    // indexa o que faltar quando for usada.
+    void indexPendingEmails(userId).catch((error) => {
+      console.error("[sync] indexação semântica falhou (será retomada na próxima pesquisa):", error);
+    });
 
     return { threadsSynced: synced };
   } catch (error) {

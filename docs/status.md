@@ -4,7 +4,7 @@
 > Regra do projeto: avançar fase a fase, verificar qualidade/tipos/lint e testar
 > manualmente no fim de cada fase antes de passar à seguinte (master-spec §56).
 
-## Estado (2026-09-06)
+## Estado (2026-09-07)
 
 - **Fases 1-3: completas e testadas manualmente.**
 - **Fase 4 (IA): FECHADA e testada manualmente com modelo real (Gemini).**
@@ -29,8 +29,16 @@
   master-spec põe UX e qualidade visual acima da integração de IA, e a
   primeira impressão da landing pesa muito num projeto de portfólio. Ver
   "Fase 7 (parcial)" abaixo.
-- **Fase 6 (semantic search/RAG, Gmail incremental): não iniciada — é o
-  próximo trabalho**, retomada depois deste redesign.
+- **Fase 6 (pesquisa semântica/RAG + Google Calendar real): implementada
+  (2026-09-07).** pgvector a funcionar no PGlite local, pipeline completo do
+  §27 (limpar → chunk → embedding → pgvector → retrieval → resposta), modo
+  "Significado" em `/app/search`, ferramenta `searchEmailsByMeaning` no
+  agente, e integração real com o Google Calendar com autorização
+  incremental. Ver "Fase 6" abaixo. **Uma parte fica por validar por
+  depender de configuração na Google Cloud Console — ler
+  "O que falta para o calendário funcionar".**
+  A sincronização incremental do Gmail (`historyId`) NÃO foi feita e
+  continua em Future Improvements.
 - Stack: Next.js 16 (App Router, Turbopack), TypeScript strict, Tailwind v4,
   design system próprio sobre Radix, Drizzle + PostgreSQL, Auth.js v5
   (Credentials + Google OAuth real), Gmail API via `fetch` direto (sem SDK
@@ -535,6 +543,181 @@ global) mas não foi emulado no browser. **Fica para o utilizador confirmar.**
   repositório público. A direção foi reproduzida com fontes livres
   auto-hospedadas via `next/font`.
 - **Sem imagens/vídeo**: a página é tipografia, CSS e SVG inline.
+
+## Fase 6 — pesquisa semântica/RAG + Google Calendar (2026-09-07)
+
+### pgvector: o bloqueio inicial e como foi resolvido (sem perder dados)
+
+A base de dados local corre em PGlite (`dev-db/server.js`). A partir da
+0.5.x as extensões saíram do pacote principal, por isso `CREATE EXTENSION
+vector` falhava. A saída óbvia era descer para PGlite 0.4.x, que ainda a
+trazia embutida — mas essa versão é PostgreSQL 17 e o `pgdata` existente é
+18, o que obrigava a apagar a base de dados. **Isso chegou a ser autorizado,
+mas não foi preciso**: existe `@electric-sql/pglite-pgvector` (0.0.9), que
+carrega a extensão como plugin na 0.5.x. Resultado: PG18 mantido, pgvector
+0.8.1 a funcionar, zero perda de dados (73 threads intactas).
+
+Detalhe que custou tempo: a instalação falhou primeiro com um 404 em
+`@electric-sql/pg-protocol@0.0.4` — lockfile do pnpm desatualizado dentro de
+`dev-db/`. Resolveu-se apagando `node_modules` e os lockfiles dessa pasta.
+
+`drizzle/0005_free_klaw.sql` leva um `CREATE EXTENSION IF NOT EXISTS vector`
+escrito à mão no topo: o Drizzle não o gera, e sem ele a migração rebenta
+numa base de dados nova.
+
+### Decisões de arquitetura (RAG)
+
+- **Embeddings FORA da interface `AIProvider`** (`src/lib/ai/embeddings.ts`).
+  A Anthropic não tem embeddings; obrigá-la a declarar `embed()` seria criar
+  uma capacidade a fingir. É uma chamada REST direta à Gemini API com o mesmo
+  tratamento de erros PT-PT do resto (§35).
+- **Modelo fixo: `gemini-embedding-001`, `outputDimensionality: 768`.** Nunca
+  um alias (a Fase 4 já tinha ensinado que os "-latest" mudam de geração e de
+  quota sem aviso). 768 e não as 3072 por omissão porque os índices do
+  pgvector não aceitam vetores tão largos. Os vetores são normalizados à mão
+  depois de truncados — truncar tira-lhes a norma 1 de que a distância de
+  cosseno depende. O modelo fica gravado em cada linha de `email_embedding`:
+  trocá-lo invalida o índice todo.
+- **Chunking com cabeçalho** (`src/lib/ai/chunking.ts`): cada chunk começa
+  com `Assunto:` e `De:`. Sem isso, uma pesquisa por "o email do fornecedor
+  de alojamento" não encontra nada, porque o corpo pode nunca dizer nem o
+  nome nem o assunto. O texto é limpo antes (corta na assinatura/citação):
+  indexar assinaturas fazia com que as mesmas conversas ganhassem sempre,
+  já que o que mais se repete numa caixa é o rodapé.
+- **Quando é que a indexação corre** — a pergunta que a fase deixou em
+  aberto. **Nem síncrona no fim do sync, nem fila.** Síncrona bloquearia o
+  utilizador e faria um sync bem-sucedido parecer falhado se a quota de
+  embeddings estourasse a meio; uma fila a sério precisa de um worker fora do
+  Next, que este projeto não tem (seria infraestrutura a fingir). Ficou
+  **indexação incremental idempotente**, chamada (a) a seguir ao sync sem
+  `await` a bloquear a resposta e (b) antes de uma pesquisa semântica, para
+  que a primeira pesquisa numa caixa nova não devolva vazio.
+- **Dois cortes de relevância, não um.** Uma pesquisa vetorial devolve sempre
+  os K mais próximos, mesmo quando nada é relevante. Há um corte absoluto
+  (0.62) e um corte relativo ao melhor resultado (0.07), porque a escala
+  desliza com a pergunta: uma pergunta vaga baixa todas as semelhanças. Os
+  valores foram medidos no dataset de seed, não escolhidos a olho.
+- **A resposta de IA é a pedido, com botão** — nunca automática a cada
+  pesquisa (§51). E o pedido de resposta re-executa a pesquisa no servidor
+  em vez de aceitar as passagens do cliente: aceitá-las deixaria qualquer
+  pessoa injetar texto no prompt e ler emails alheios (§29/§31).
+
+### Medição: a pesquisa semântica ganha mesmo à textual?
+
+O §27 diz para implementar RAG só se resolver um problema real. Medido com
+um script temporário sobre o dataset de seed (27 emails, 27 chunks,
+indexação em 1.1 s), com seis perguntas deliberadamente parafraseadas — sem
+usar as palavras dos emails:
+
+| Pergunta | Palavras-chave | Semântica (1.º resultado) |
+| --- | --- | --- |
+| "o site está em baixo e os clientes não conseguem pagar" | 0 resultados | Bug crítico em produção (65%) |
+| "alguém está preocupado com o prazo do trabalho" | 0 | Bug crítico / Revisão do design do Q3 (70%) |
+| "quanto é que tenho de pagar este mês" | 0 | Fatura #4521 (74%) |
+| "a viagem que tenho marcada" | 0 | Confirmação: Voo LIS→BER (68%) |
+| "alguém quer trabalhar comigo num projeto novo" | 0 | Proposta de parceria (70%) |
+| "mudança de horário de uma conversa de equipa" | 0 | Reunião reagendada (72%) |
+
+Seis em seis: a pesquisa textual devolve **zero** e a semântica acerta no
+topo. Uma sétima pergunta sem relação nenhuma ("receitas de bolo de
+chocolate") devolve zero nos dois modos — é o corte absoluto a funcionar.
+Retrieval a ~300 ms.
+
+**Verdicto sobre aumentar o dataset de seed**: não é preciso, e não foi
+feito. O contraste já é claro com 20 threads, e o ruído que aparece nos
+lugares 4-8 vem de haver poucos documentos a competir — acrescentar emails
+piorava isso em vez de o resolver. Se um dia crescer, é para a demo parecer
+uma caixa real (§48), não para o RAG funcionar.
+
+### Google Calendar (§21)
+
+- **Autorização separada e incremental.** `CALENDAR_OAUTH_SCOPES` só tem
+  `calendar.events`, e o fluxo é próprio (`/api/google/calendar/connect` →
+  `/callback`), não um segundo provider do Auth.js. Razão: o Auth.js
+  autentica, e aqui não se autentica ninguém — já há sessão. Metê-lo no
+  `signIn` traria de volta o bug de account-linking da Fase 3 e obrigaria a
+  passar pelo login outra vez. Também evita pedir acesso ao calendário a
+  quem só quer entrar na app.
+- **Linha própria em `account`** (`provider: "google-calendar"`), para que
+  ligar/desligar o calendário não mexa na ligação do Gmail. `tokens.ts` foi
+  generalizado: a renovação é a mesma, o que muda é a linha e a mensagem de
+  erro que o utilizador vê.
+- **Ordem de escrita: local primeiro, Google a seguir.** Se o Google recusar
+  (quota, rede, autorização revogada), o utilizador fica com o evento na app
+  e é avisado de que não foi para lá — em vez de perder as duas coisas. O
+  contrário deixaria eventos órfãos no calendário se a gravação local
+  falhasse. A ferramenta do agente devolve ao modelo ONDE o evento ficou,
+  para ele não anunciar um evento no Google que ficou só local (§13).
+- **Desligar revoga o token no Google**, não se limita a apagar a linha
+  local (§32). Os eventos já criados lá ficam — são do utilizador.
+
+### O que falta para o calendário funcionar (é configuração, não código)
+
+Verificado no browser: o botão "Ligar Google Calendar" leva mesmo ao Google
+e o pedido é aceite como bem formado, mas a Google devolve
+**`redirect_uri_mismatch`** — o URI novo ainda não está registado. No
+mesmo cliente OAuth da Google Cloud Console é preciso:
+
+1. **Authorized redirect URIs** → adicionar
+   `http://localhost:3000/api/google/calendar/callback`
+2. **Data Access** → adicionar o scope
+   `https://www.googleapis.com/auth/calendar.events`
+3. **APIs & Services → Library** → ativar a **Google Calendar API**
+
+Só depois disto é possível fazer o teste que falta: ligar o calendário com
+`cansvitor@gmail.com` (único test user autorizado) e confirmar que um evento
+criado na app aparece mesmo no Google Calendar. **Até lá, a integração está
+implementada e testada por partes, mas não ponta a ponta — e este documento
+não a dá por confirmada.**
+
+### Testes
+
+60 unitários (`pnpm test:unit`), 22 novos:
+
+- `chunking.test.ts` (14): limpeza de assinaturas/citações/reencaminhamentos,
+  fronteiras de chunk em fim de frase, teto de chunks por email, cabeçalho
+  repetido em todos os chunks.
+- `calendar.test.ts` (8): scopes do calendário disjuntos dos do Gmail, URL de
+  autorização com `access_type=offline`/`include_granted_scopes`, e o
+  mapeamento de erros — incluindo a verificação de que o detalhe técnico da
+  API **nunca** aparece na mensagem mostrada ao utilizador (§35).
+
+Nota de infraestrutura: `server-only` passou a ser dependência explícita (o
+Next resolvia-o por alias interno, e fora do Next não existia). O Vitest não
+corre com a condição `react-server`, por isso o `vitest.config.ts` aponta-o
+para um stub — sem isso, qualquer teste que importe indiretamente um módulo
+server-only falha na importação.
+
+### Verificado / não verificado
+
+**Verificado**: `pnpm typecheck`, `pnpm lint`, `pnpm test:unit` (60/60);
+indexação real de 27 emails contra a API do Gemini; as seis pesquisas
+semânticas da tabela acima; no browser, o modo "Significado" com excertos e
+percentagens e a resposta com IA em streaming — que, perguntada sobre "o
+site está em baixo e os clientes não conseguem pagar", **recusou-se a
+inventar**: disse que não encontrou nada sobre isso e apontou o que existe
+mesmo (erro 500 ao guardar preferências), citando os excertos.
+
+**Não verificado**: o fluxo OAuth do calendário ponta a ponta e a criação de
+um evento real no Google (bloqueado pela configuração acima); e o
+comportamento com uma caixa de Gmail real grande (o dataset de teste é o de
+seed).
+
+### Fora do âmbito desta fase (documentado, não escondido)
+
+- **Sincronização incremental do Gmail (`historyId`)**: continua por fazer,
+  como desde a Fase 3.
+- **Calendário só de escrita**: cria e apaga eventos no Google, mas não lê
+  de lá nem reconcilia alterações feitas no Google.
+- **Fuso horário do servidor**: a app não guarda o fuso do utilizador. Não
+  desloca eventos (as datas vão como instantes ISO, absolutos), só decide em
+  que fuso o Google os mostra.
+- **Reindexação de emails alterados**: um email cujo corpo mude depois de
+  indexado mantém o embedding antigo. Não acontece na prática (o Gmail não
+  reescreve mensagens); trocar de modelo de embeddings obriga a limpar a
+  tabela `email_embedding` à mão.
+- **Sem reranking**: o resultado é a ordem da distância de cosseno, sem um
+  segundo modelo a reordenar. Com este volume não compensa a chamada extra.
 
 ## Notas operacionais que ainda importam
 

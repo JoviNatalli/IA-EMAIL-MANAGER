@@ -6,6 +6,9 @@
 // Nuvoly app or its git history — pure local tooling, lives outside the repo.
 import { PGlite } from '@electric-sql/pglite'
 import { PGLiteSocketServer } from '@electric-sql/pglite-socket'
+// pgvector: a partir da PGlite 0.5 as extensões vivem em pacotes próprios.
+// É o que permite a pesquisa semântica da Fase 6 correr na base local.
+import { vector } from '@electric-sql/pglite-pgvector'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -14,7 +17,7 @@ const dataDir = path.join(__dirname, 'pgdata')
 const port = Number(process.env.LOCAL_DB_PORT || 5433)
 const host = '127.0.0.1'
 
-const db = await PGlite.create({ dataDir })
+const db = await PGlite.create({ dataDir, extensions: { vector } })
 
 const server = new PGLiteSocketServer({
   db,

@@ -12,7 +12,8 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { db } from "@/lib/db";
-import { calendarEvents, reminders, tasks, threads } from "@/lib/db/schema";
+import { reminders, tasks, threads } from "@/lib/db/schema";
+import { createCalendarEventForUser } from "@/lib/calendar/service";
 import { buildMeetingExtractionPrompt, buildTaskExtractionPrompt } from "@/lib/ai/prompts";
 import { getAIProvider } from "@/lib/ai/provider";
 import { meetingExtractionSchema, taskExtractionSchema } from "@/lib/ai/schemas";
@@ -112,15 +113,22 @@ const createCalendarEvent: AgentTool<{
   confirmation: "never",
   async execute(ctx, args) {
     const sourceThreadId = await resolveSourceThreadId(ctx, args.sourceThreadId);
-    await db.insert(calendarEvents).values({
-      userId: ctx.userId,
+    const result = await createCalendarEventForUser(ctx.userId, {
       title: args.title,
       startsAt: new Date(args.startsAt),
       endsAt: args.endsAt ? new Date(args.endsAt) : null,
       location: args.location ?? null,
       sourceThreadId,
     });
-    return { output: `Evento "${args.title}" adicionado ao calendário para ${args.startsAt}.` };
+
+    // O modelo tem de saber ONDE o evento ficou, senão diz ao utilizador que
+    // está no Google Calendar quando ficou só na app (spec §13).
+    const where = result.googleHtmlLink
+      ? "no Nuvoly e no Google Calendar"
+      : result.googleError
+        ? `no Nuvoly (não foi para o Google Calendar: ${result.googleError})`
+        : "no Nuvoly (o Google Calendar não está ligado)";
+    return { output: `Evento "${args.title}" criado ${where} para ${args.startsAt}.` };
   },
 };
 

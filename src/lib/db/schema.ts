@@ -22,6 +22,7 @@ import {
   integer,
   index,
   uniqueIndex,
+  vector,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
@@ -430,6 +431,11 @@ export const calendarEvents = pgTable(
     endsAt: timestamp("ends_at", { mode: "date" }),
     location: text("location"),
     sourceThreadId: uuid("source_thread_id").references(() => threads.id, { onDelete: "set null" }),
+    // Fase 6 — quando o evento também foi criado no Google Calendar real.
+    // Fica `null` para eventos só locais (utilizador sem o scope concedido):
+    // a UI usa isto para dizer a verdade sobre onde o evento existe.
+    googleEventId: text("google_event_id"),
+    googleHtmlLink: text("google_html_link"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [index("calendar_event_user_idx").on(t.userId, t.startsAt)],
@@ -478,6 +484,62 @@ export const calendarEventsRelations = relations(calendarEvents, ({ one }) => ({
 
 export const aiPendingActionsRelations = relations(aiPendingActions, ({ one }) => ({
   user: one(users, { fields: [aiPendingActions.userId], references: [users.id] }),
+}));
+
+// ── Pesquisa semântica / RAG (Fase 6) ───────────────────────────────────
+
+/**
+ * Embeddings por CHUNK de email (spec §27).
+ *
+ * Tabela separada, e não uma coluna em `email`, porque um email dá vários
+ * chunks: uma thread longa tem de poder ser encontrada pelo parágrafo certo,
+ * não pela média de tudo o que lá está dito.
+ *
+ * `userId` está desnormalizado aqui de propósito: a pesquisa filtra sempre
+ * por utilizador ANTES de calcular distâncias, e fazer isso com um join a
+ * `email → thread` a cada consulta vetorial seria mais lento e mais fácil de
+ * esquecer (spec §29 — nada de resultados de outro utilizador).
+ *
+ * 768 dimensões: é o `outputDimensionality` que pedimos ao
+ * `gemini-embedding-001` (o default é 3072, que ultrapassa o limite dos
+ * índices do pgvector).
+ */
+export const emailEmbeddings = pgTable(
+  "email_embedding",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    emailId: uuid("email_id")
+      .notNull()
+      .references(() => emails.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    threadId: uuid("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    chunkIndex: integer("chunk_index").notNull(),
+    /** Texto do chunk tal como foi enviado ao modelo — é o que se cita depois. */
+    content: text("content").notNull(),
+    embedding: vector("embedding", { dimensions: 768 }).notNull(),
+    /** Modelo que gerou o vetor: trocar de modelo obriga a reindexar. */
+    model: text("model").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("email_embedding_chunk_idx").on(t.emailId, t.chunkIndex),
+    index("email_embedding_user_idx").on(t.userId),
+    // HNSW com distância de cosseno: é a métrica em que os vetores do
+    // Gemini são treinados (e por isso normalizamos antes de gravar).
+    index("email_embedding_vector_idx").using(
+      "hnsw",
+      t.embedding.op("vector_cosine_ops"),
+    ),
+  ],
+);
+
+export const emailEmbeddingsRelations = relations(emailEmbeddings, ({ one }) => ({
+  email: one(emails, { fields: [emailEmbeddings.emailId], references: [emails.id] }),
+  thread: one(threads, { fields: [emailEmbeddings.threadId], references: [threads.id] }),
 }));
 
 // ── Relations ────────────────────────────────────────────────────────────

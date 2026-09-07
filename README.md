@@ -6,11 +6,11 @@ SaaS de gestão inteligente de email com IA integrada como copiloto — não um
 chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 
 > Projeto de portfólio construído por fases. Este README reflete o estado
-> após a **Fase 5 — AI Agent**. O plano completo (64 secções) está em
+> após a **Fase 6 — Pesquisa semântica e calendário real**. O plano completo (64 secções) está em
 > [`docs/master-spec.md`](./docs/master-spec.md); o estado detalhado e as
 > decisões de execução de cada fase em [`docs/status.md`](./docs/status.md).
 
-## Estado atual (Fase 5 — AI Agent) ✅
+## Estado atual (Fase 6 — Pesquisa semântica e calendário real) ✅
 
 **Fase 1 — Foundation**
 - Next.js 16 (App Router, Turbopack, React 19.2), TypeScript strict
@@ -37,8 +37,8 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 - Compose com autosave de rascunho (debounced) e envio (modo demo — grava em
   Sent, sem envio real de email)
 - Labels: criar, aplicar/remover a uma thread, apagar, navegar por label
-- Search por assunto/remetente/conteúdo (`/app/search`) — pesquisa semântica
-  fica para a Fase 6
+- Search por assunto/remetente/conteúdo (`/app/search`) — a pesquisa
+  semântica chegou na Fase 6, como um segundo modo
 - Suite E2E (Playwright, `pnpm test:e2e`) cobrindo o fluxo crítico: login →
   abrir thread → estrela → arquivar/restaurar → lixo → compose/enviar →
   responder → labels → search
@@ -65,7 +65,7 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 - Erros da Gmail API nunca aparecem crus — sempre traduzidos para PT-PT
   (token expirado, permissões insuficientes, rate limit, Gmail em baixo)
 
-**Fase 4 — IA** (nova)
+**Fase 4 — IA**
 - **Camada de abstração de provider** (`src/lib/ai/provider.ts`, spec §4): a
   app nunca importa o SDK de um provider diretamente. Anthropic e Google
   (Gemini) estão implementados; trocar é mudar `AI_DEFAULT_PROVIDER` no
@@ -88,7 +88,7 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 - **Nunca inventar** (spec §13): quando não há informação suficiente para
   um resumo fiável, a UI diz isso em vez de encher
 
-**Fase 5 — AI Agent** (nova)
+**Fase 5 — AI Agent**
 - **Agente com tool calling** (`src/lib/ai/agent.ts`, spec §16–18): 20
   ferramentas — pesquisar, ler, resumir, arquivar, marcar como lida, aplicar
   estrelas e labels, criar rascunhos, enviar, responder, criar tarefas,
@@ -107,7 +107,8 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 - **Task Extraction** (§20) e **Calendar Intelligence** (§21): as ferramentas
   de deteção são de leitura pura — devolvem propostas que aparecem como
   cards com botão. Nada é criado sem clique do utilizador. `/app/tasks`
-  agrupa por dia; `/app/calendar` guarda os eventos localmente
+  agrupa por dia; `/app/calendar` guarda os eventos (e, desde a Fase 6,
+  também no Google Calendar real quando ligado)
 - **Daily AI Briefing** (§19): as contagens e destaques são calculados em
   SQL; o modelo só escreve o texto por cima deles, e é gerado a pedido
 - **Proteção contra prompt injection** (§31): conteúdo de email e resultados
@@ -126,6 +127,29 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 > utilizador clicar em "Analisar com IA". Por spec (§13), a app nunca
 > apresenta como IA aquilo que não foi gerado por IA.
 
+**Fase 6 — Pesquisa semântica e calendário real** (nova)
+- **Pesquisa semântica / RAG** (§24/§27): pipeline completo — limpar o texto
+  do email, dividir em chunks com contexto, gerar embeddings
+  (`gemini-embedding-001`, 768 dimensões) e guardar em **pgvector** com
+  índice HNSW. `/app/search` passou a ter dois modos: "Palavras-chave"
+  (o `ilike` de sempre) e "Significado". No modo semântico cada resultado
+  mostra o excerto que fez o match e a proximidade
+- **Resposta com IA sobre os emails encontrados**: botão explícito (nunca
+  automático — custo, §51) que devolve a resposta em streaming, citando os
+  excertos. Quando os emails não contêm a resposta, o modelo diz isso em vez
+  de a inventar (§13)
+- **Indexação incremental e idempotente**: corre a seguir ao sync do Gmail
+  (sem bloquear a resposta) e antes de uma pesquisa semântica, e só toca nos
+  emails que ainda não têm embedding
+- **`searchEmailsByMeaning`** entrou na caixa de ferramentas do agente, ao
+  lado da pesquisa por palavras — o modelo escolhe conforme o utilizador
+  sabe (ou não) as palavras exatas
+- **Google Calendar real** (§21): autorização **separada** da do Gmail
+  (incremental — o scope `calendar.events` só é pedido quando o utilizador
+  liga o calendário em Definições → Contas). O evento é sempre gravado
+  localmente primeiro e escrito no Google a seguir: se o Google recusar, o
+  utilizador fica com o evento na app e é avisado de que não foi para lá
+
 ## Tech stack
 
 | Camada | Escolha |
@@ -133,8 +157,9 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 | Frontend | Next.js 16 (App Router), React 19, TypeScript strict, Tailwind CSS v4 |
 | UI | Componentes próprios sobre Radix UI (padrão shadcn/ui — ver nota abaixo) |
 | Auth | Auth.js v5 — Credentials + Demo Mode (Fase 1) e Google OAuth real (Fase 3) |
-| Database | PostgreSQL 16 + Drizzle ORM |
+| Database | PostgreSQL 16 + Drizzle ORM + **pgvector** (embeddings da pesquisa semântica, índice HNSW) |
 | IA | Camada própria de abstração sobre `@google/genai` (Gemini) e `@anthropic-ai/sdk` (Claude) — sem SDK de agente intermédio, para controlo total de structured outputs e tool calling |
+| Embeddings | `gemini-embedding-001` (768 dimensões) via REST — fora da abstração de provider, porque a Anthropic não tem embeddings |
 | Validação | Zod (inclui os structured outputs e os argumentos das ferramentas de IA) |
 | Testes | Vitest (unitários) + Playwright (E2E) |
 | Animação | Framer Motion |
@@ -225,6 +250,10 @@ Pontos que interessam para quem for ler o código:
   modelos por tarefa (quando um esgota a quota diária do plano gratuito, o
   seguinte assume) e deteção de respostas truncadas — uma resposta cortada
   nunca passa por resposta válida
+- **RAG com corte duplo** (§27): a pesquisa vetorial devolve sempre os K mais
+  próximos, mesmo quando nada é relevante. Há por isso um corte absoluto de
+  semelhança **e** um corte relativo ao melhor resultado — uma pergunta sem
+  resposta nos emails devolve zero resultados em vez de oito irrelevantes
 
 ## Desenvolvimento local
 
@@ -277,6 +306,16 @@ Ver [`.env.example`](./.env.example).
   `http://localhost:3000/api/auth/callback/google`) são necessárias para o
   botão "Continuar com Google" — sem elas, o resto da app (Credentials +
   Demo Mode) continua a funcionar normalmente.
+- **Google Calendar (Fase 6)** reutiliza as mesmas credenciais, mas com um
+  fluxo OAuth próprio (autorização incremental — o scope do calendário nunca
+  é pedido no login). Para o activar é preciso, no mesmo cliente OAuth:
+  1. adicionar `http://localhost:3000/api/google/calendar/callback` aos
+     **Authorized redirect URIs**;
+  2. adicionar o scope `.../auth/calendar.events` em **Data Access**;
+  3. activar a **Google Calendar API** em APIs & Services → Library.
+  Sem estes passos, o botão "Ligar Google Calendar" leva a um
+  `redirect_uri_mismatch` do lado da Google. Sem o calendário ligado a app
+  funciona na mesma: os eventos ficam locais e a UI diz isso.
 - `AI_DEFAULT_PROVIDER` escolhe o provider de IA (`google` ou `anthropic`) e
   a chave correspondente tem de estar preenchida:
   `GOOGLE_GENERATIVE_AI_API_KEY` (gratuita em
@@ -352,10 +391,14 @@ Ver [`.env.example`](./.env.example).
   do §28 ficam por fazer
 - **Lembretes não notificam**: `createReminder` grava o lembrete, mas ainda
   não há nada que dispare notificações
-- **Google Calendar**: os eventos detetados são guardados localmente; a
-  sincronização com o Google Calendar não está feita e a UI diz isso
-- **Pesquisa semântica/RAG**: continua para a Fase 6 — hoje a pesquisa é
-  textual
+- **Google Calendar — só escrita**: criar e apagar eventos propaga para o
+  Google, mas não há leitura do calendário nem sincronização de alterações
+  feitas do lado de lá. O fuso usado ao escrever é o do servidor (a app não
+  guarda o fuso do utilizador)
+- **Reindexação semântica**: um email cujo corpo mude depois de indexado
+  mantém o embedding antigo. Na prática não acontece (o Gmail não reescreve
+  mensagens), mas trocar o modelo de embeddings obriga a limpar a tabela
+  `email_embedding` à mão
 - **Testes de integração das ferramentas**: as invariantes (políticas de
   confirmação, validação de argumentos, isolamento de prompt injection) têm
   testes unitários; o isolamento entre utilizadores é verificado
@@ -369,7 +412,9 @@ Ver [`.env.example`](./.env.example).
 - ~~**Fase 4** — Resumo, categorização, prioridade e respostas por IA~~ ✅
 - ~~**Fase 5** — AI Agent com tool calling, ações confirmáveis, tarefas,
   calendar intelligence e daily briefing~~ ✅
-- **Fase 6** — Pesquisa semântica/RAG e sincronização incremental do Gmail
+- ~~**Fase 6** — Pesquisa semântica/RAG e integração real com o Google
+  Calendar~~ ✅ (a sincronização incremental do Gmail via `historyId`
+  continua em Future Improvements)
 - **Fase 7** — Polish: animações, responsividade, acessibilidade, testes
 - **Fase 8** — Landing final, demo mode com dataset completo, case study
 

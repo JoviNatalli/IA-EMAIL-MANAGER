@@ -199,6 +199,28 @@ async function searchThreads(userId: string, rawQuery: string): Promise<ThreadLi
   return rows.map(toListItem).slice(0, 50);
 }
 
+/**
+ * Threads por id, na ORDEM em que os ids são dados.
+ *
+ * A pesquisa semântica (Fase 6) ordena por relevância, não por data, e essa
+ * ordem tem de sobreviver à ida à base de dados — daí não usar `orderBy`.
+ * O filtro por `userId` fica na query, não no chamador (spec §29).
+ */
+export async function listThreadsByIds(
+  userId: string,
+  ids: string[],
+): Promise<ThreadListItem[]> {
+  if (ids.length === 0) return [];
+
+  const rows = await db.query.threads.findMany({
+    where: and(eq(threads.userId, userId), inArray(threads.id, ids)),
+    with: listWith,
+  });
+
+  const byId = new Map(rows.map((row) => [row.id, toListItem(row)]));
+  return ids.map((id) => byId.get(id)).filter((item): item is ThreadListItem => item !== undefined);
+}
+
 export async function getThread(userId: string, threadId: string): Promise<ThreadDetail | null> {
   const row = await db.query.threads.findFirst({
     where: and(eq(threads.id, threadId), eq(threads.userId, userId)),

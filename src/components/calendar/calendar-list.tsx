@@ -2,19 +2,28 @@
 
 /**
  * Eventos detetados em emails e guardados pelo utilizador (spec §21).
- * Guardados localmente — a sincronização com o Google Calendar não está
- * implementada, e a UI diz isso em vez de dar a entender que está.
+ *
+ * Cada evento diz onde existe de facto: só no Nuvoly, ou também no Google
+ * Calendar (com link para lá). Um evento criado antes de o utilizador ligar
+ * o calendário fica local para sempre — e a lista mostra isso em vez de
+ * deixar a dúvida.
  */
 import * as React from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Clock, Mail, MapPin, Trash2 } from "lucide-react";
+import { Clock, ExternalLink, Mail, MapPin, Trash2 } from "lucide-react";
 
 import { deleteCalendarEvent } from "@/app/actions/agent";
 import { Button } from "@/components/ui/button";
 import type { CalendarEventItem } from "@/lib/emails/productivity-queries";
 
-export function CalendarList({ events }: { events: CalendarEventItem[] }) {
+export function CalendarList({
+  events,
+  calendarConnected,
+}: {
+  events: CalendarEventItem[];
+  calendarConnected: boolean;
+}) {
   const [isPending, startTransition] = React.useTransition();
 
   const groups = React.useMemo(() => {
@@ -33,8 +42,9 @@ export function CalendarList({ events }: { events: CalendarEventItem[] }) {
   function remove(eventId: string) {
     startTransition(async () => {
       try {
-        await deleteCalendarEvent(eventId);
-        toast.success("Evento removido.");
+        const result = await deleteCalendarEvent(eventId);
+        if (result.googleError) toast.warning(result.googleError);
+        else toast.success("Evento removido.");
       } catch (error) {
         toast.error(error instanceof Error ? error.message : "Ocorreu um erro.");
       }
@@ -44,7 +54,9 @@ export function CalendarList({ events }: { events: CalendarEventItem[] }) {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 md:px-6">
       <p className="text-xs text-muted-foreground">
-        Guardado no Nuvoly. A sincronização com o Google Calendar ainda não está implementada.
+        {calendarConnected
+          ? "Os eventos novos são criados também no Google Calendar."
+          : "Guardado apenas no Nuvoly. Ligue o Google Calendar em Definições → Contas para os eventos novos irem também para lá."}
       </p>
 
       {groups.map(([label, items]) => (
@@ -70,6 +82,18 @@ export function CalendarList({ events }: { events: CalendarEventItem[] }) {
                   )}
                 </p>
               </div>
+              {event.googleHtmlLink && (
+                <a
+                  href={event.googleHtmlLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="shrink-0 text-muted-foreground hover:text-foreground"
+                  aria-label="Abrir no Google Calendar"
+                  title="No Google Calendar"
+                >
+                  <ExternalLink className="size-3.5" />
+                </a>
+              )}
               {event.sourceThreadId && (
                 <Link
                   href={`/app/inbox/${event.sourceThreadId}`}

@@ -10,6 +10,22 @@
  * consentimento OAuth da Google Cloud Console (Data Access), senão a Google
  * rejeita o pedido de autorização.
  */
+/**
+ * Scopes do Google Calendar (Fase 6, §21) — SEPARADOS dos do Gmail de
+ * propósito.
+ *
+ * Pedir acesso ao calendário no ecrã de login obrigaria toda a gente a
+ * autorizá-lo só para entrar na app, mesmo quem nunca vai criar um evento.
+ * Fica como autorização incremental: só é pedido quando o utilizador liga o
+ * calendário nas Definições, e quem não liga continua a ter eventos locais.
+ *
+ * `calendar.events` (e não `calendar`) é o mínimo necessário: cria e lê
+ * eventos, não mexe em calendários nem em partilhas.
+ */
+export const CALENDAR_OAUTH_SCOPES = [
+  "https://www.googleapis.com/auth/calendar.events",
+] as const;
+
 export const GMAIL_OAUTH_SCOPES = [
   "openid",
   "email",

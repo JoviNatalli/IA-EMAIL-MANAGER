@@ -40,6 +40,8 @@ export interface CalendarEventItem {
   endsAt: Date | null;
   location: string | null;
   sourceThreadId: string | null;
+  /** Link do evento no Google Calendar — `null` quando ficou só local. */
+  googleHtmlLink: string | null;
 }
 
 export async function listCalendarEvents(userId: string): Promise<CalendarEventItem[]> {
@@ -51,6 +53,7 @@ export async function listCalendarEvents(userId: string): Promise<CalendarEventI
       endsAt: calendarEvents.endsAt,
       location: calendarEvents.location,
       sourceThreadId: calendarEvents.sourceThreadId,
+      googleHtmlLink: calendarEvents.googleHtmlLink,
     })
     .from(calendarEvents)
     .where(eq(calendarEvents.userId, userId))
