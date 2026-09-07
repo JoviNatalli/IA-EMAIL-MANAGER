@@ -707,8 +707,11 @@ seed).
 
 - **Sincronização incremental do Gmail (`historyId`)**: continua por fazer,
   como desde a Fase 3.
-- **Calendário só de escrita**: cria e apaga eventos no Google, mas não lê
-  de lá nem reconcilia alterações feitas no Google.
+- **Calendário sem reconciliação de alterações**: lê os próximos eventos do
+  Google e mostra-os (ver "Atualização 2026-09-07" abaixo), mas não deteta
+  quando um evento criado pelo Nuvoly é editado ou apagado do lado do
+  Google — a linha local fica desatualizada até o utilizador apagar os dois
+  manualmente.
 - **Fuso horário do servidor**: a app não guarda o fuso do utilizador. Não
   desloca eventos (as datas vão como instantes ISO, absolutos), só decide em
   que fuso o Google os mostra.
@@ -721,6 +724,45 @@ seed).
 
 Commit `17ea90c` no branch `phase-6-semantic-search` (não fiz push nem merge
 para `main` — decisão do utilizador, como nas fases anteriores).
+
+### Atualização 2026-09-07 — leitura do Google Calendar + bug real de setup
+
+Ao testar com a conta real do utilizador (`joaonatalli11@gmail.com`,
+adicionada entretanto como test user), o botão "Ligar Google Calendar"
+falhou com `redirect_uri_mismatch` mesmo com a Calendar API já ativada.
+Causa: **ativar a API não regista o redirect URI** — são dois sítios
+diferentes na Google Cloud Console (API Library vs. Credenciais → o
+cliente OAuth "Web application"). O cliente só tinha o URI do login
+(`/api/auth/callback/google`); faltava adicionar
+`/api/google/calendar/callback` à lista de "URIs de redirecionamento
+autorizados" *desse mesmo cliente*. Fica como nota para o README, porque é
+o tipo de erro que parece bug de código e não é.
+
+Depois disso o utilizador ligou o calendário e reparou que a implementação
+original só escrevia — as reuniões que já existiam no Google Calendar
+antes de qualquer coisa nunca apareciam em `/app/calendar`. Isto estava
+documentado como fora do âmbito, mas o utilizador pediu para implementar
+já. Adicionado:
+
+- `listUpcomingCalendarEvents` no cliente da API (GET com `singleEvents:
+  true` — sem isto uma reunião recorrente só aparecia uma vez, na primeira
+  ocorrência; e `orderBy: startTime`).
+- `listGoogleOnlyEventsForUser`: lê os próximos 50 eventos do Google e
+  filtra os que já têm linha local (via `googleEventId`), para não
+  duplicar na lista um evento que o Nuvoly criou.
+- `/app/calendar` mostra os dois conjuntos juntos, ordenados por data, com
+  os eventos "só no Google" marcados como tal (sem link para o email de
+  origem, porque não têm — não passaram pela app).
+- Apagar um evento "só no Google" chama a API diretamente
+  (`deleteRemoteCalendarEvent`, nova Server Action), porque não existe
+  linha em `calendar_event` para apagar primeiro.
+
+Ficou por fazer (documentado, não escondido): reconciliação de edições —
+um evento criado pelo Nuvoly e depois editado ou apagado no Google não é
+detetado; a linha local fica desatualizada até o utilizador mexer nos dois
+lados. Implementar isso a sério pede sincronização incremental (`syncToken`
+da Calendar API), que é o género de trabalho da "Fase 8 — polish" e não
+cabia neste pedido pontual.
 
 ## Notas operacionais que ainda importam
 

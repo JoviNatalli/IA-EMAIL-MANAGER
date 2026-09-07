@@ -148,7 +148,10 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
   (incremental — o scope `calendar.events` só é pedido quando o utilizador
   liga o calendário em Definições → Contas). O evento é sempre gravado
   localmente primeiro e escrito no Google a seguir: se o Google recusar, o
-  utilizador fica com o evento na app e é avisado de que não foi para lá
+  utilizador fica com o evento na app e é avisado de que não foi para lá.
+  `/app/calendar` também LÊ os próximos eventos que já existiam no Google
+  (não só os criados pelo Nuvoly), mostrados lado a lado com os locais e
+  marcados como "só no Google" — sem duplicar os que a app já tem
 
 ## Tech stack
 
@@ -308,14 +311,22 @@ Ver [`.env.example`](./.env.example).
   Demo Mode) continua a funcionar normalmente.
 - **Google Calendar (Fase 6)** reutiliza as mesmas credenciais, mas com um
   fluxo OAuth próprio (autorização incremental — o scope do calendário nunca
-  é pedido no login). Para o activar é preciso, no mesmo cliente OAuth:
-  1. adicionar `http://localhost:3000/api/google/calendar/callback` aos
-     **Authorized redirect URIs**;
-  2. adicionar o scope `.../auth/calendar.events` em **Data Access**;
-  3. activar a **Google Calendar API** em APIs & Services → Library.
-  Sem estes passos, o botão "Ligar Google Calendar" leva a um
-  `redirect_uri_mismatch` do lado da Google. Sem o calendário ligado a app
-  funciona na mesma: os eventos ficam locais e a UI diz isso.
+  é pedido no login). Para o activar são precisos **três passos em dois
+  sítios diferentes** da Google Cloud Console — ativar a API sozinha não
+  chega, e foi exatamente isso que causou um `redirect_uri_mismatch` real ao
+  testar:
+  1. **APIs & Services → Library** → ativar a **Google Calendar API**;
+  2. **APIs & Services → Credentials** → abrir o cliente OAuth "Web
+     application" que o Nuvoly usa (o mesmo de `AUTH_GOOGLE_ID`) →
+     **Authorized redirect URIs** → adicionar
+     `http://localhost:3000/api/google/calendar/callback` (isto fica no
+     ecrã do CLIENTE, não no da API — é fácil confundir os dois e ativar só
+     a API, como aconteceu);
+  3. **Data Access** (da tela de consentimento) → adicionar o scope
+     `.../auth/calendar.events`.
+  Uma mudança nos redirect URIs pode levar de minutos a horas a propagar,
+  segundo a própria consola. Sem o calendário ligado a app funciona na
+  mesma: os eventos ficam locais e a UI diz isso.
 - `AI_DEFAULT_PROVIDER` escolhe o provider de IA (`google` ou `anthropic`) e
   a chave correspondente tem de estar preenchida:
   `GOOGLE_GENERATIVE_AI_API_KEY` (gratuita em
@@ -391,10 +402,11 @@ Ver [`.env.example`](./.env.example).
   do §28 ficam por fazer
 - **Lembretes não notificam**: `createReminder` grava o lembrete, mas ainda
   não há nada que dispare notificações
-- **Google Calendar — só escrita**: criar e apagar eventos propaga para o
-  Google, mas não há leitura do calendário nem sincronização de alterações
-  feitas do lado de lá. O fuso usado ao escrever é o do servidor (a app não
-  guarda o fuso do utilizador)
+- **Google Calendar — sem reconciliação de alterações**: cria, lê e apaga
+  eventos, mas não deteta quando um evento criado pelo Nuvoly é editado ou
+  apagado do lado do Google — a linha local fica desatualizada até apagar
+  dos dois lados manualmente. O fuso usado ao escrever é o do servidor (a
+  app não guarda o fuso do utilizador)
 - **Reindexação semântica**: um email cujo corpo mude depois de indexado
   mantém o embedding antigo. Na prática não acontece (o Gmail não reescreve
   mensagens), mas trocar o modelo de embeddings obriga a limpar a tabela
