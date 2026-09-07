@@ -719,6 +719,9 @@ seed).
 - **Sem reranking**: o resultado é a ordem da distância de cosseno, sem um
   segundo modelo a reordenar. Com este volume não compensa a chamada extra.
 
+Commit `17ea90c` no branch `phase-6-semantic-search` (não fiz push nem merge
+para `main` — decisão do utilizador, como nas fases anteriores).
+
 ## Notas operacionais que ainda importam
 
 - **PAT do GitHub por rodar**: um Personal Access Token foi partilhado em
