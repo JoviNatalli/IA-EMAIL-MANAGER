@@ -852,11 +852,16 @@ fast-forward 16 commits e os nomes intermédios (`phase-4-gemini-provider`,
 `phase-5-ai-agent`, `phase-6-semantic-search`, `phase-7-landing-redesign`)
 foram apagados.
 
-**O push falhou e continua por fazer**: o keychain do macOS tem credenciais
-de `FireHorseWM` para um repositório de `JoviNatalli`, e a Google recusa com
-`403 Permission denied`. Não é algo que eu possa resolver — passa por
-atualizar a credencial (o mesmo PAT que continua por rodar, ver notas
-operacionais). `main` local está 16 commits à frente de `origin/main`.
+**RESOLVIDO em 2026-09-08.** O keychain do macOS tinha uma credencial de
+`FireHorseWM` (a identidade Git de trabalho desta máquina — `git config
+--global user.email` aponta para `jnatalli@firehorse.ptm`) guardada para
+`github.com`, e o repositório é de `JoviNatalli`. Apagada com
+`git credential-osxkeychain erase`; reautenticado com `gh auth login` (login
+por browser) e `gh auth setup-git`. Identidade Git deste repositório
+corrigida para local (`git config --local user.name/email`, sem tocar no
+global — os outros projetos desta máquina continuam a assinar como
+FireHorse): `João Nat <cansvitor@gmail.com>`. `main` local e
+`origin/main` sincronizados em `f3abaef`.
 
 ### 1. Navegação mobile (§37) — era uma lacuna funcional
 
@@ -1140,16 +1145,11 @@ funciona.
 
 ## Notas operacionais que ainda importam
 
-- **PAT do GitHub por rodar E credencial errada no keychain**: um Personal
-  Access Token foi partilhado em texto simples numa sessão anterior. Além
-  de continuar por rodar (https://github.com/settings/tokens), o keychain
-  do macOS tem credenciais de `FireHorseWM` guardadas para `github.com`,
-  enquanto o repositório é de `JoviNatalli` — por isso `git push` devolve
-  `403 Permission denied`. **`main` local está 16 commits à frente de
-  `origin/main` e o push é ação do utilizador.** Para corrigir:
-  `git credential-osxkeychain erase` (com `host=github.com` e
-  `protocol=https`), ou apagar a entrada "github.com" no Acesso a Porta-
-  chaves, e autenticar de novo com o PAT correto no próximo push.
+- **PAT do GitHub por rodar**: um Personal Access Token foi partilhado em
+  texto simples numa sessão anterior. Continua por rodar/revogar em
+  https://github.com/settings/tokens, se ainda não foi feito — a credencial
+  errada no keychain (ver "Fase 8") era um problema diferente, já resolvido,
+  e não substitui isto.
 - Atualizar este ficheiro no fim de cada fase (estado, decisões tomadas, o
   que ficou fora do âmbito) — é o que substitui o hand-off manual entre
   sessões.
