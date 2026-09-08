@@ -8,6 +8,16 @@
  *    mais do que um processo, cada um tem o seu contador. Para produção a
  *    sério isto é Redis (Upstash) ou o rate limiting da própria plataforma;
  *    aqui seria infraestrutura a fingir para uma demo de portefólio.
+ *  - **Em serverless (o deploy da Fase 8, no Vercel) isto é quase inerte**,
+ *    e não vale a pena fingir o contrário: cada invocação pode acordar numa
+ *    instância nova com o mapa vazio, e o limitador trata-a como o primeiro
+ *    pedido. Só trava rajadas que calhem na mesma instância quente.
+ *    Decidido com o utilizador (2026-09-08) manter assim em vez de
+ *    acrescentar um Redis: o travão real em produção continua a ser a quota
+ *    diária do plano gratuito do Gemini, e a alternativa era pôr um serviço
+ *    externo no caminho crítico de uma demo. Está dito no README, não só
+ *    aqui — a mesma regra do §13 (não fingir uma capacidade que não existe)
+ *    aplicada a infraestrutura.
  *  - **Não protege contra um atacante sem sessão**: as rotas já exigem
  *    autenticação antes de chegar aqui, e é por utilizador, não por IP.
  *

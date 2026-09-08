@@ -25,6 +25,13 @@
   deteção de reuniões (§21) e Daily Briefing (§19). Ver "Fase 5 — AI Agent"
   abaixo. **FECHADA** — validada manualmente pelo utilizador (2026-09-08):
   o agente funciona ponta a ponta com a conta real.
+- **Fase 8 — Portfolio: código, docs e preparação de deploy FEITOS
+  (2026-09-08); o deploy em si aguarda as contas do utilizador.** README
+  completo (Demo, Features, Database, Testing, Deployment, Screenshots),
+  `CASE_STUDY.md` novo, três diagramas Mermaid validados, seis screenshots
+  capturados contra o Demo Mode, e o código preparado para serverless. Ver
+  "Fase 8 — Portfolio" abaixo. **O URL de produção ainda não existe** —
+  passos em `docs/deploy-checklist.md`.
 - **Fase 7 — Polish: COMPLETA (2026-09-08).** Tinha sido feita em duas
   partes: primeiro a landing (2026-09-06, fora de ordem por decisão do
   utilizador — o §60 põe UX e qualidade visual acima da integração de IA), e
@@ -1030,6 +1037,106 @@ existe, como o painel do agente já fazia.
   ficam por confirmar.
 - **Persistência das conversas do agente** e **notificações de lembretes**
   continuam por fazer, como desde a Fase 5.
+
+## Fase 8 — Portfolio (2026-09-08)
+
+Última fase do master-spec. Documentação final + preparação de deploy no
+tier gratuito, com a mesma disciplina de custo zero da escolha do Gemini.
+
+### Decisões tomadas
+
+- **Neon, não Supabase**, para o Postgres. O `pgvector` está disponível em
+  todos os planos do Neon, incluindo o gratuito, e ativa-se com o mesmo
+  `CREATE EXTENSION IF NOT EXISTS vector` que a migração
+  `0005_free_klaw.sql` já traz — não é preciso ativar nada no dashboard. O
+  Supabase traria auth e storage que este projeto não usa.
+- **Rate limiting fica como está, e a limitação passa a estar no README.**
+  Decidido com o utilizador. `src/lib/rate-limit.ts` é uma janela deslizante
+  em memória; no Vercel cada invocação pode acordar numa instância nova com
+  o contador a zero, por isso em serverless é quase inerte — só trava
+  rajadas que calhem na mesma instância quente. A alternativa avaliada era
+  Upstash Redis (tem tier gratuito), rejeitada por pôr um serviço externo no
+  caminho crítico de uma demonstração. O travão real continua a ser a quota
+  diária do plano gratuito do Gemini. **O que muda face ao que já estava
+  documentado**: passou do `status.md` interno para o README público, que é
+  onde a promessa é feita — mesma regra do §13 aplicada a infraestrutura.
+- **Demo Mode é o caminho público, não um plano B.** O projeto Google Cloud
+  continua em modo *Testing*: só test users autenticam com Gmail/Calendar
+  reais. Sair disso exige revisão da Google e passaria a pedir acesso ao
+  Gmail de desconhecidos — fora de âmbito. Está escrito no README como
+  decisão, não escondido.
+
+### Preparação de código para serverless (encontrado, não pedido)
+
+Duas coisas que teriam partido em produção:
+
+- **`src/lib/db/index.ts` abria até 10 ligações por instância** em produção.
+  Em serverless isso multiplica-se pelo número de instâncias e esgota o
+  limite do Postgres. Passou a `max: 1`, com o pooling verdadeiro delegado
+  no pooler do Neon.
+- **Prepared statements com o pooler do Neon.** O pooler corre em modo
+  transação, onde prepared statements com nome não sobrevivem entre
+  pedidos — o `postgres.js` usa-os por omissão e a primeira query
+  reutilizada falharia com `prepared statement ... does not exist`.
+  `prepare: false` quando `process.env.VERCEL` está definido.
+- **`maxDuration = 60`** nas duas rotas de IA. Com Fluid Compute o default
+  do Vercel são 300s, mas sem ele são 10s — e um turno do agente já foi
+  medido em ~40s ao percorrer a cadeia de modelos (Fase 5).
+
+Verificado também que `pnpm db:migrate` e `pnpm db:seed` respeitam um
+`DATABASE_URL` vindo do shell (tanto o `dotenv` do `drizzle.config.ts` como
+o `--env-file` do Node dão precedência ao ambiente) — é assim que as
+migrações correm contra produção sem editar o `.env.local`.
+
+### Entregues
+
+- **README** com as secções que faltavam ao §62: Demo, Screenshots,
+  Features, Database (entidades + nota do pgvector), Testing (contagens e o
+  que NÃO está coberto), Deployment (replicável por outra pessoa).
+- **Três diagramas Mermaid** com nomes reais de ficheiros e tabelas —
+  arquitetura geral, ciclo do agente e pipeline de RAG. Validados com o
+  parser do Mermaid antes de commitar (3/3 fazem parse); um diagrama
+  partido num README de portefólio seria pior do que não ter diagrama.
+- **`CASE_STUDY.md`**: Problem, Solution, Architecture, AI Architecture,
+  Challenges, Decisions, Results, e uma secção explícita do que ficou por
+  fazer. Os desafios foram extraídos deste ficheiro e reescritos para quem
+  não conhece o projeto, mantendo os factos exatos.
+- **Seis screenshots** (`docs/screenshots/`, 904KB) capturados por
+  `pnpm screenshots` — script novo em `scripts/screenshots.ts`, fora de
+  `tests/e2e/` para não correr no `test:e2e`. Corre sempre contra o Demo
+  Mode: imagens de uma conta real num repositório público não têm como
+  voltar atrás.
+- **`docs/deploy-checklist.md`**: os passos que exigem contas do
+  utilizador, com os valores concretos e uma tabela de sintomas/causas.
+
+### Correções factuais encontradas a escrever a documentação
+
+- **O agente tem 21 ferramentas, não 20.** O `status.md` dizia 20 desde a
+  Fase 5, e a Fase 6 acrescentou `searchEmailsByMeaning` sem atualizar a
+  contagem. Verificado no registo (`emailTools` 15 + `productivityTools` 6).
+  Corrigido no README e no case study.
+- **O brief desta fase pedia `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`**,
+  mas o código usa `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` (convenção do
+  Auth.js v5). A documentação usa os nomes reais — seguir o brief à letra
+  daria um deploy sem login Google.
+- **O indicador de dev do Next aparecia nos screenshots**, por cima do item
+  "Settings". Escondido por CSS na captura, em vez de desligado no
+  `next.config` (a config afetaria o dia a dia de quem desenvolve).
+
+### O que falta para a Fase 8 ficar fechada
+
+O deploy exige contas que não são minhas. Por ordem:
+
+1. Neon: criar projeto, correr `db:migrate` e `db:seed` contra ele.
+2. Vercel: importar o repositório, definir as 7 variáveis, deploy.
+3. Google Cloud Console: acrescentar os dois redirect URIs de produção ao
+   MESMO cliente OAuth (sem remover os de `localhost`).
+
+Depois disso falta ainda, e **está por fazer**: substituir
+`DEMO_URL_A_PREENCHER` no `README.md` e no `CASE_STUDY.md` pelo URL real, e
+correr a verificação do Demo Mode ponta a ponta contra produção numa janela
+anónima. Até lá, o README tem um marcador visível em vez de um link que não
+funciona.
 
 ## Notas operacionais que ainda importam
 

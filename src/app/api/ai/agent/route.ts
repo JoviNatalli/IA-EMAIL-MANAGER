@@ -16,6 +16,18 @@ import { runAgentTurn, type AgentEvent } from "@/lib/ai/agent";
 import { AIError, AIProviderNotConfiguredError } from "@/lib/ai/errors";
 import { AI_AGENT_LIMIT, checkRateLimit } from "@/lib/rate-limit";
 
+/**
+ * Teto de duração da função em serverless (Fase 8).
+ *
+ * Explícito de propósito: com Fluid Compute o default do Vercel são 300s,
+ * mas num projeto onde o Fluid esteja desligado o default cai para 10s — e
+ * um turno do agente já foi medido em ~40s quando teve de percorrer a
+ * cadeia de modelos (ver docs/status.md, Fase 5). Sem isto, esses turnos
+ * morriam a meio em produção; 60s é o teto do plano Hobby clássico e passa
+ * nos dois modelos.
+ */
+export const maxDuration = 60;
+
 const MAX_HISTORY_MESSAGES = 20;
 
 const agentRequestSchema = z.object({

@@ -5,12 +5,83 @@
 SaaS de gestão inteligente de email com IA integrada como copiloto — não um
 chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 
-> Projeto de portfólio construído por fases. Este README reflete o estado
-> após a **Fase 7 — Polish**. O plano completo (64 secções) está em
-> [`docs/master-spec.md`](./docs/master-spec.md); o estado detalhado e as
-> decisões de execução de cada fase em [`docs/status.md`](./docs/status.md).
+> Projeto de portfólio construído por fases. O plano completo (64 secções)
+> está em [`docs/master-spec.md`](./docs/master-spec.md); o estado detalhado
+> e as decisões de execução de cada fase em
+> [`docs/status.md`](./docs/status.md). O percurso, os problemas reais e o
+> que ficou por fazer estão no [**case study**](./CASE_STUDY.md).
 
-## Estado atual (Fase 7 — Polish) ✅
+## Demo
+
+**[Ver ao vivo](DEMO_URL_A_PREENCHER)** · entrar com **"Explorar demo sem
+conta"** (ou `demo@nuvoly.app` / `demo1234`).
+
+O Demo Mode é o caminho principal, não um plano B: entra sem ligar conta
+nenhuma e **todas as funcionalidades de IA funcionam** sobre um dataset
+fictício de 20 conversas — insights, gerador de respostas, o agente com
+tool calling e a pesquisa semântica.
+
+> **O login com Google não funciona para um visitante qualquer, e isso é
+> propositado.** O projeto Google Cloud está em modo *Testing*, onde só
+> emails adicionados como test user conseguem autenticar. Sair disso exige
+> submeter a app a revisão da Google — desproporcionado para um projeto de
+> portfólio, e passaria a pedir acesso ao Gmail real de desconhecidos. A
+> integração com o Gmail e o Google Calendar está implementada e testada
+> com contas reais (ver [case study](./CASE_STUDY.md)); o que o link
+> público demonstra é o Demo Mode.
+
+## Screenshots
+
+| Landing | Inbox com AI Insights |
+| --- | --- |
+| ![Landing page](./docs/screenshots/01-landing.png) | ![Inbox com o painel de AI Insights aberto](./docs/screenshots/02-inbox-ai-insights.png) |
+
+| Agente a pedir confirmação | Pesquisa por significado |
+| --- | --- |
+| ![Cartão de confirmação do agente com a contagem de itens afetados](./docs/screenshots/03-agente-confirmacao.png) | ![Pesquisa semântica com excertos e percentagem de proximidade](./docs/screenshots/04-pesquisa-semantica.png) |
+
+| Calendário | Navegação mobile |
+| --- | --- |
+| ![Página de calendário](./docs/screenshots/05-calendario.png) | ![Drawer de navegação a 375px](./docs/screenshots/06-mobile-drawer.png) |
+
+Capturados por `pnpm screenshots` (Playwright) contra o Demo Mode — nunca
+contra uma conta de email real.
+
+## Features
+
+**Email**
+- Inbox de duas colunas com pastas (inbox, importantes, com estrela,
+  enviados, rascunhos, arquivo, lixo), threads expansíveis e contagens
+- Ações: ler, estrela, arquivar, mover para o lixo, apagar definitivamente,
+  responder, reencaminhar
+- Compose com autosave de rascunho; labels (criar, aplicar, filtrar)
+- Pesquisa por assunto, remetente e conteúdo — **e por significado**
+- Command palette (⌘K) e atalhos de teclado
+
+**Gmail e Calendar reais**
+- Login com Google; sincronização real via Gmail API, **incremental** a
+  partir da segunda vez (`users.history.list`)
+- Envio e rascunhos reais; estrela, lido, arquivar e labels propagados
+- Google Calendar com autorização **separada** e incremental: cria, lê e
+  reconcilia eventos (`syncToken`)
+
+**IA**
+- **AI Insights** por conversa: resumo, categoria, prioridade, intenção,
+  sentimento e ação sugerida — a pedido, com cache
+- **Gerador de respostas** com tom e comprimento; **smart replies**
+- **Ações de IA no compose**: melhorar, encurtar, traduzir, continuar
+- **Agente com tool calling** (21 ferramentas): pesquisa, lê, resume,
+  arquiva, etiqueta, cria rascunhos, tarefas e eventos — e **pede sempre
+  confirmação** antes de qualquer ação sensível, com a contagem de itens
+- **Pesquisa semântica / RAG** sobre pgvector, com resposta citada
+- **Daily Briefing** com contagens calculadas em SQL e o texto por cima
+- Extração de tarefas e deteção de reuniões, sempre como propostas
+
+**Produto**
+- Demo Mode de um clique, dark mode desenhado (não invertido), navegação
+  mobile própria, onboarding de 4 passos
+
+## O que foi construído, fase a fase
 
 **Fase 1 — Foundation**
 - Next.js 16 (App Router, Turbopack, React 19.2), TypeScript strict
@@ -89,7 +160,7 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
   um resumo fiável, a UI diz isso em vez de encher
 
 **Fase 5 — AI Agent**
-- **Agente com tool calling** (`src/lib/ai/agent.ts`, spec §16–18): 20
+- **Agente com tool calling** (`src/lib/ai/agent.ts`, spec §16–18): 21
   ferramentas — pesquisar, ler, resumir, arquivar, marcar como lida, aplicar
   estrelas e labels, criar rascunhos, enviar, responder, criar tarefas,
   lembretes e eventos, detetar tarefas/reuniões num email
@@ -218,6 +289,57 @@ chatbot ao lado, mas parte da própria experiência de gerir a inbox.
 
 ## Arquitetura
 
+```mermaid
+flowchart TB
+    subgraph browser["Browser"]
+        RSC["Server Components<br/>MailShell, páginas /app/*"]
+        RCC["Client Components<br/>ThreadDetail, AgentChatPanel, SearchView"]
+    end
+
+    PROXY["proxy.ts<br/>checagem otimista de sessão"]
+
+    subgraph servidor["Servidor Next.js"]
+        SA["Server Actions<br/>actions/emails.ts · ai.ts · agent.ts<br/>gmail.ts · calendar.ts · preferences.ts"]
+        RH["Route Handlers<br/>api/ai/agent · api/ai/search<br/>api/auth/[...nextauth]<br/>api/google/calendar/connect · callback"]
+        AUTH["auth.ts · Auth.js v5<br/>Credentials + Demo Mode + Google"]
+        GSYNC["lib/google/sync.ts<br/>runGmailSync · historyId"]
+        CSVC["lib/calendar/service.ts<br/>reconcileCalendarForUser · syncToken"]
+        AILAYER["lib/ai/*<br/>ver diagrama de IA"]
+    end
+
+    DRIZZLE["lib/db/index.ts<br/>Drizzle ORM"]
+    PG[("PostgreSQL + pgvector<br/>thread · email · label · task<br/>calendar_event · ai_analysis<br/>ai_pending_action · email_embedding<br/>gmail_sync · calendar_sync")]
+
+    GMAILAPI["Gmail API<br/>GMAIL_OAUTH_SCOPES"]
+    CALAPI["Google Calendar API<br/>CALENDAR_OAUTH_SCOPES<br/>autorização incremental, separada"]
+
+    RCC -->|"fetch / action"| SA
+    RCC -->|"NDJSON / stream"| RH
+    RSC --> DRIZZLE
+    PROXY -.->|"revalidado sempre no servidor"| SA
+    PROXY -.-> RH
+
+    SA --> DRIZZLE
+    RH --> DRIZZLE
+    SA --> AILAYER
+    RH --> AILAYER
+    AILAYER --> DRIZZLE
+    DRIZZLE --> PG
+
+    SA --> GSYNC
+    SA --> CSVC
+    RH --> AUTH
+    AUTH -->|"OAuth · tokens em account"| GMAILAPI
+    GSYNC -->|"users.history.list"| GMAILAPI
+    CSVC -->|"events.list com syncToken"| CALAPI
+    RH -->|"fluxo OAuth próprio"| CALAPI
+```
+
+Os dois scopes do Google são **deliberadamente separados**: o do calendário
+só é pedido quando o utilizador o liga em Definições, com um fluxo OAuth
+próprio e uma linha própria em `account` — ligar ou desligar um não mexe no
+outro.
+
 ```
 src/
 ├── app/                  # Rotas (App Router)
@@ -265,23 +387,68 @@ apenas no servidor.
 
 ## Arquitetura de IA
 
+### O ciclo do agente — o LLM nunca escreve na base de dados
+
+```mermaid
+flowchart TB
+    PEDIDO["Pedido em linguagem natural<br/>api/ai/agent/route.ts"]
+    PROMPT["lib/ai/prompts.ts<br/>SYSTEM · USER · EMAIL_CONTENT · TOOL_RESULTS<br/>delimitadores neutralizados"]
+    PROVIDER["lib/ai/provider.ts<br/>AIProvider: AnthropicProvider | GoogleProvider<br/>retry + cadeia de modelos por quota"]
+    LLM{{"LLM<br/>devolve nome de ferramenta + argumentos"}}
+    ZOD["Validação Zod<br/>lib/ai/tools/*.ts"]
+    REGRAS["Regras de negócio + ownership por userId<br/>requireOwnedThreads"]
+    POLITICA{"Política de confirmação<br/>never · bulk · always"}
+    PENDENTE[("ai_pending_action<br/>argumentos guardados no servidor")]
+    UI["UI mostra resumo + contagem de itens afetados"]
+    EXEC["Execução<br/>Server Actions da Fase 2/3"]
+    DADOS[("Base de dados + Gmail API")]
+
+    PEDIDO --> PROMPT --> PROVIDER --> LLM --> ZOD --> REGRAS --> POLITICA
+    POLITICA -->|"ação sensível"| PENDENTE --> UI
+    UI -->|"clique do utilizador<br/>envia só o id, nunca os argumentos"| EXEC
+    POLITICA -->|"leitura ou ação reversível"| EXEC
+    EXEC --> DADOS
+    EXEC -->|"resultado como TOOL_RESULTS"| PROMPT
 ```
-UI (Server Action / Route Handler)
-      ↓
-lib/ai/prompts.ts     SYSTEM / USER / <EMAIL_CONTENT> / <TOOL_RESULTS> separados (§31)
-      ↓
-lib/ai/provider.ts    abstração: Anthropic | Google  (+ retry, fallback de modelo)
-      ↓
-      LLM
-      ↓
-Zod                   structured output ou argumentos de ferramenta validados (§58)
-      ↓
-regras de negócio + verificação de posse por userId (§29/§30)
-      ↓
-confirmação do utilizador quando a ação é sensível (§18)
-      ↓
-execução (Server Actions existentes → base de dados / Gmail API)
+
+O cliente nunca envia os argumentos ao confirmar — só o `id` da ação, que é
+revalidado com o Zod da ferramenta antes de executar. Os resultados das
+ferramentas voltam ao modelo dentro de `<TOOL_RESULTS>` com os
+delimitadores neutralizados: um email não consegue sair do bloco de dados e
+passar por instrução (§31).
+
+### O pipeline de RAG (§27)
+
+```mermaid
+flowchart LR
+    subgraph indexacao["Indexação — incremental e idempotente"]
+        EMAIL["email.bodyText"]
+        CLEAN["lib/ai/chunking.ts<br/>cleanEmailText<br/>corta assinaturas e citações"]
+        CHUNK["chunkText + buildEmailChunks<br/>cabeçalho Assunto/De em cada chunk"]
+        EMB["lib/ai/embeddings.ts<br/>gemini-embedding-001 · 768 dims"]
+        TAB[("email_embedding<br/>índice HNSW · cosseno")]
+        EMAIL --> CLEAN --> CHUNK --> EMB --> TAB
+    end
+
+    subgraph consulta["Consulta"]
+        Q["Pergunta do utilizador"]
+        QEMB["embedQuery<br/>RETRIEVAL_QUERY"]
+        BUSCA["lib/search/semantic.ts<br/>distância de cosseno, escopada por userId"]
+        CORTES{"Dois cortes<br/>absoluto 0.62<br/>relativo 0.07 ao topo"}
+        VAZIO["Zero resultados<br/>em vez dos K menos irrelevantes"]
+        RAG["lib/ai/rag.ts<br/>streamRagAnswer com citações"]
+        Q --> QEMB --> BUSCA --> CORTES
+        CORTES -->|"nada acima do corte"| VAZIO
+        CORTES -->|"passagens relevantes"| RAG
+    end
+
+    TAB --> BUSCA
 ```
+
+Os dois cortes existem porque uma pesquisa vetorial devolve **sempre** os K
+mais próximos, mesmo quando nada é relevante — sem eles, perguntar por algo
+que não está na caixa devolvia com confiança os oito emails menos
+irrelevantes.
 
 Pontos que interessam para quem for ler o código:
 
@@ -340,6 +507,145 @@ para entrar imediatamente, sem criar conta (`demo@nuvoly.app` / `demo1234`).
 | `pnpm db:studio` | Drizzle Studio (explorar a BD) |
 | `pnpm test:unit` | Vitest — schemas de IA, prompts, chunking, calendário, rate limiting |
 | `pnpm test:e2e` | Suite Playwright (reseeda a BD antes de correr) |
+| `pnpm screenshots` | Recaptura as imagens do README contra o Demo Mode |
+
+## Database
+
+PostgreSQL com **pgvector**. Schema em
+[`src/lib/db/schema.ts`](./src/lib/db/schema.ts), migrations versionadas em
+[`drizzle/`](./drizzle).
+
+| Entidade | Para quê |
+| --- | --- |
+| `user` · `account` · `session` · `verificationToken` | Auth.js. `account` tem uma linha por ligação: `google` (Gmail) e `google-calendar` são **separadas** |
+| `user_preference` | Onboarding, nível de IA, fuso horário reportado pelo browser |
+| `thread` · `email` · `attachment` | Conversas e mensagens, multi-tenant (tudo escopado a `userId`) |
+| `label` · `thread_label` | Labels próprias e importadas do Gmail |
+| `ai_analysis` | Cache da análise de IA por thread (§51 — evita repetir chamadas pagas) |
+| `ai_pending_action` | Ação sensível proposta pelo agente, com os argumentos validados **no servidor**, à espera de confirmação (§18) |
+| `task` · `reminder` · `calendar_event` | Extraídos de emails, sempre com clique do utilizador |
+| `email_embedding` | Um vetor por *chunk* de email — `vector(768)` com índice HNSW e distância de cosseno |
+| `gmail_sync` · `calendar_sync` | Ponto de partida das sincronizações incrementais (`historyId` e `syncToken`) |
+
+**Nota sobre o pgvector**: a migração
+[`drizzle/0005_free_klaw.sql`](./drizzle/0005_free_klaw.sql) começa com um
+`CREATE EXTENSION IF NOT EXISTS vector` escrito **à mão** — o Drizzle não o
+gera, e sem ele o tipo `vector` não existe e a migração falha numa base de
+dados nova. `email_embedding` guarda também o nome do modelo que gerou cada
+vetor: trocar de modelo de embeddings invalida o índice todo.
+
+## Testing
+
+```bash
+pnpm typecheck && pnpm lint   # tsc --noEmit + ESLint
+pnpm test:unit                # 71 testes (Vitest)
+pnpm test:e2e                 # 28 testes (Playwright, reseeda a BD)
+```
+
+O Playwright pode precisar do browser numa máquina nova:
+`npx playwright install chromium`.
+
+**71 unitários** — lógica pura: schemas Zod dos structured outputs,
+separação SYSTEM/EMAIL CONTENT dos prompts (com payloads de prompt
+injection reais), invariantes do registo de ferramentas do agente
+(nada destrutivo sem confirmação), limpeza e chunking de texto de email,
+mapeamento de erros do Calendar e o rate limiter.
+
+**28 E2E** — três suites:
+- `mail.spec.ts` (16): o fluxo crítico de email, ponta a ponta
+- `polish.spec.ts` (12): navegação a 375px e 768px, alvos de toque ≥44px,
+  cada atalho de teclado (incluindo a garantia de que não disparam dentro
+  de campos de texto), `prefers-reduced-motion`, nomes acessíveis em todos
+  os botões e ordem de tabulação
+- `ai.spec.ts` (6): correm contra o **modelo real**. As chamadas ao LLM
+  acontecem no servidor e o `page.route()` do Playwright não as interceta;
+  mocká-las exigiria uma camada de injeção que só existiria para os testes.
+  Verificam por isso o **contrato** do §35 — cada fluxo acaba num resultado
+  válido **ou** numa mensagem PT-PT, nunca num erro cru ou spinner eterno —
+  e a invariante do §18: nenhum email sai do Inbox sem confirmação
+  explícita
+
+O que **não** está coberto por testes automáticos, e porquê: o isolamento
+entre utilizadores (§29) é verificado manualmente, porque exigiria uma base
+de dados de teste com dois utilizadores; e a navegação mobile foi validada
+em viewport emulado, não em hardware real.
+
+## Deployment
+
+Deploy em **Vercel** (Hobby) + **Neon** (Postgres serverless), ambos no
+tier gratuito — a mesma disciplina de custo zero da escolha do Gemini.
+Neon porque tem `pgvector` em todos os planos, incluindo o gratuito, e
+porque o pooling serverless é exatamente o que o Vercel precisa; o Supabase
+traria auth e storage que este projeto não usa.
+
+**1. Base de dados (Neon)**
+
+Criar um projeto, copiar a **connection string com pooling** (a que tem
+`-pooler` no host) e correr as migrações e o seed a partir da máquina
+local — as variáveis do shell têm precedência sobre o `.env.local`:
+
+```bash
+DATABASE_URL="postgresql://…-pooler.…neon.tech/neondb?sslmode=require" pnpm db:migrate
+DATABASE_URL="postgresql://…-pooler.…neon.tech/neondb?sslmode=require" pnpm db:seed
+```
+
+A primeira migração cria a extensão `vector` sozinha. O seed é idempotente
+e é o que dá conteúdo ao Demo Mode.
+
+**2. Vercel**
+
+Importar `JoviNatalli/IA-EMAIL-MANAGER` (branch `main`) e definir as
+variáveis **no dashboard, nunca no repositório**:
+
+| Variável | Valor |
+| --- | --- |
+| `DATABASE_URL` | Connection string com pooling do Neon |
+| `AUTH_SECRET` | `npx auth secret` (novo, diferente do local) |
+| `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Do cliente OAuth da Google Cloud Console |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | Chave gratuita do [AI Studio](https://aistudio.google.com/apikey) |
+| `AI_DEFAULT_PROVIDER` | `google` |
+| `NEXT_PUBLIC_APP_URL` | O domínio de produção, com `https://` |
+
+> Os nomes são `AUTH_GOOGLE_ID`/`AUTH_GOOGLE_SECRET` (convenção do Auth.js
+> v5), **não** `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` — ver
+> [`src/auth.ts`](./src/auth.ts) e
+> [`src/lib/google/tokens.ts`](./src/lib/google/tokens.ts).
+
+**3. Google Cloud Console — os redirect URIs de produção**
+
+No **mesmo** cliente OAuth, em *Credentials → o cliente Web application →
+Authorized redirect URIs*, **acrescentar** (sem remover os de `localhost`):
+
+```
+https://<domínio>/api/auth/callback/google
+https://<domínio>/api/google/calendar/callback
+```
+
+Ativar a API na *Library* não chega e não é o mesmo ecrã — são dois sítios
+diferentes, e confundi-los já custou um `redirect_uri_mismatch` neste
+projeto (ver [case study](./CASE_STUDY.md)). As mudanças podem demorar
+minutos a propagar.
+
+**4. Notas de produção que interessam**
+
+- **Rate limiting não funciona em serverless, e está dito aqui de
+  propósito.** [`src/lib/rate-limit.ts`](./src/lib/rate-limit.ts) é uma
+  janela deslizante **em memória**: no Vercel, cada invocação pode acordar
+  numa instância nova com o contador a zero, e o limitador trata-a como o
+  primeiro pedido. Só trava rajadas que calhem na mesma instância quente.
+  Decisão consciente para uma demo de baixo tráfego, onde o travão real
+  continua a ser a quota diária do plano gratuito do Gemini; a alternativa
+  (Upstash Redis) punha um serviço externo no caminho crítico. Fica escrito
+  em vez de deixar acreditar numa proteção que não existe.
+- **Ligações à base de dados**: `max: 1` por instância e `prepare: false`
+  em serverless — o pooler do Neon corre em modo transação, onde prepared
+  statements com nome não sobrevivem entre pedidos.
+- **Duração das funções**: as rotas de IA declaram `maxDuration = 60`. Com
+  Fluid Compute o default do Vercel já é maior, mas sem ele seriam 10s — e
+  um turno do agente já foi medido em ~40s quando teve de percorrer a
+  cadeia de modelos.
+- **Cold start**: o tier gratuito do Neon suspende a base de dados por
+  inatividade; o primeiro pedido depois de um período parado é mais lento.
 
 ## Variáveis de ambiente
 
@@ -478,7 +784,13 @@ Ver [`.env.example`](./.env.example).
   Calendar~~ ✅
 - ~~**Fase 7** — Polish: navegação mobile, atalhos de teclado,
   acessibilidade, animações, testes, segurança~~ ✅
-- **Fase 8** — Landing final, demo mode com dataset completo, case study
+- ~~**Fase 8** — Portfolio: deploy em produção, README completo, case study,
+  diagramas e screenshots~~ ✅
+
+Todas as 8 fases do master-spec estão entregues. O que fica por fazer está
+listado em [Future Improvements](#future-improvements) e no
+[case study](./CASE_STUDY.md#o-que-ficou-por-fazer) — nenhum deles é
+omissão silenciosa.
 
 Plano detalhado por secção: [`docs/master-spec.md`](./docs/master-spec.md).
 Estado e decisões por fase: [`docs/status.md`](./docs/status.md).
